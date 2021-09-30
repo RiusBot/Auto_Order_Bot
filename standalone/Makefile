@@ -22,18 +22,21 @@ compile:
 	pyinstaller --noconsole -F src/gui.py
 
 compile-win:
-	# compile on mac
+	# this is for compile windows exe on mac
 	mkdir -p build-win
 	cp -r src build-win
 	cp requirements.txt build-win/src
 	cp setup.py build-win/src
-	# docker run -v "$(shell pwd)/build-win/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-windows "sleep 10000"
 	docker run -v "$(shell pwd)/build-win/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-windows "python -m pip install --upgrade pip && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
 
 compile-linux:
-	# compile on mac
-	docker run -v "$(pwd)/src:/src/" cdrx/pyinstaller-linux "pyinstaller gui.py"
-	docker run -v "$(pwd)/src:/src/" cdrx/pyinstaller-linux
+	# this is for compile linux elf on mac
+	# never test before
+	mkdir -p build-linux
+	cp -r src build-linux
+	cp requirements.txt build-linux/src
+	cp setup.py build-linux/src
+	docker run -v "$(shell pwd)/build-linux/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-linux "python -m pip install --upgrade pip && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
 
 
 ###########################
