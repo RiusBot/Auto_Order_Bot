@@ -1,0 +1,26 @@
+exchange_setting:
+  api_key: 
+  api_secret: 
+  exchange: binance
+log_setting:
+  bot_log_path: rose_bot_log.csv
+  log_path: log.txt
+order_setting:
+  hold: ''
+  leverage: '1.0'
+  limit: false
+  margin_level_ratio: '3.0'
+  market: true
+  quantity: '120.0'
+  stop_loss: '0.0'
+  take_profit: '0.0'
+  target: FUTURE
+  test_only: true
+path: 
+telegram_setting:
+  notify_channel: Bot Notify
+  signal: Rose
+  signal_channel: 🌹 Rose Premium Signal 2021
+  telegram_api_hash: 
+  telegram_api_id: 
+  test_channel: test

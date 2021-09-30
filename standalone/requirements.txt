@@ -1,0 +1,6 @@
+telethon
+python-binance==1.0.14
+pyyaml
+pysimplegui
+pandas
+pyinstaller
