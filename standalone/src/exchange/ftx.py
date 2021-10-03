@@ -102,6 +102,7 @@ class FTXClient():
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
+        order["average"] = order.get("price", price)
         logging.info(f"""
             Market Buy {symbol}
             Open price : {order['average']}
@@ -229,9 +230,9 @@ class FTXClient():
         return final_order
 
     def clean_up(self, open_order, close_order, msg: str):
-        amount = close_order["amount"]
-        open_average = open_order["average"]
-        close_average = close_order["average"]
+        amount = float(close_order["amount"])
+        open_average = float(open_order["average"])
+        close_average = float(close_order["average"])
         profit = (close_average - open_average) * amount
         percent = (close_order / open_average) - 1
         result = {
