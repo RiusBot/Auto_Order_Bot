@@ -135,7 +135,6 @@ async def message_handle(log, event):
     logging.info("=============================================")
 
     print(exchange_client)
-
     symbol_list, action = ExchangeClient(config).parse(event.text)
     if not symbol_list or action is None:
         return

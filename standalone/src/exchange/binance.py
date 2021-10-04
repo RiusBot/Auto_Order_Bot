@@ -6,6 +6,8 @@ import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
 
+from .parse import parse
+
 
 class BinanceClient():
 
@@ -42,27 +44,9 @@ class BinanceClient():
 
     def parse(self, message: str) -> Tuple[List[str], str]:
         base = "/USDT"
-        message = message.lower()
-        action = None
+        symbol_list, action = parse(message, base)
 
-        symbol_list = re.findall('#[^\s]+', message)
-        logging.debug(f"Regex parsing: {symbol_list}")
-
-        if "setup" in message:
-            for token in message.split(" "):
-                if self.validate_symbol(f"{token.upper()}{base}"):
-                    symbol_list.append(token)
-            logging.deubg(f"Backup parsing: {symbol_list}")
-
-        if symbol_list:
-            substring_list = ["buy", "long"]
-            if any(map(message.split().__contains__, substring_list)):
-                action = "buy"
-
-            substring_list = ["close", "closed", "cut", "stop", "stopped", "reach", "reached", "sell"]
-            if any(map(message.split().__contains__, substring_list)):
-                action = "sell"
-
+        # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
         symbol_list = [f"{i}{base}" for i in symbol_list]
         symbol_list = [i for i in symbol_list if self.validate_symbol(i)]
