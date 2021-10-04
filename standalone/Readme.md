@@ -6,9 +6,10 @@
 
 ### environment setup
 ```
-make-init
+make init
 ```
-Installs pyenv, pipenv, dev packages and requirement packages.
+Installs environmnets dependecies, environmnets, dev packages and requirement packages.
+
 
 ```
 make shell
@@ -17,9 +18,14 @@ Activates virtualenv
 
 
 ### run bot
+with gui
 ```
 python src/main.py --gui
 python src/gui.py
+```
+no gui
+```
+python src/main.py
 ```
 
 

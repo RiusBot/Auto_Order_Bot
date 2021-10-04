@@ -229,7 +229,6 @@ def telegram_login():
         code_callback=lambda: sg.popup_get_text("Please enter the code you recieved"),
     )
     telegram_client.disconnect()
-    sg.Popup("Login Success.")
 
 
 def run_gui():
@@ -265,6 +264,7 @@ def run_gui():
             break
         if event == "login":
             telegram_login()
+            sg.Popup("Login Success.")
         if event == "Save":
             update_config(window)
         if event == "Start":

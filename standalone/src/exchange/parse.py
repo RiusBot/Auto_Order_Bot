@@ -50,7 +50,6 @@ def parse_symbol_filter(message: str):
 
 
 def parse_symbol(message: str):
-    message = message.lower()
     symbol_list1 = parse_symbol_regex(message)
     symbol_list2 = parse_symbol_tokens(message)
     symbol_list3 = parse_symbol_filter(message)
@@ -61,7 +60,6 @@ def parse_symbol(message: str):
 
 def parse_action(message: str):
     action = None
-    message = message.lower()
     substring_list = ["buy", "long"]
     if any(map(message.split().__contains__, substring_list)):
         action = "buy"
@@ -72,8 +70,33 @@ def parse_action(message: str):
     return action
 
 
+def parse_symbol_substitute(message: str, symbol_list: List[str]):
+    symbol_map = {
+        'α': "a",
+        "ℓ": "l",
+        "ι": "i",
+        "¢": "c",
+        "є": "e",
+        "$": "s",
+    }
+    for i in range(26):
+        symbol_map[chr(ord("Ⓐ") + i)] = chr(ord('a') + i)
+    for i in range(26):
+        symbol_map[chr(ord("ⓐ") + i)] = chr(ord('a') + i)
+
+    # substitute
+    new_str = ""
+    for c in message:
+        if c in symbol_map:
+            new_str += symbol_map[c]
+        else:
+            new_str += c
+    return new_str
+
+
 def parse(message: str, base: str) -> Tuple[List[str], str]:
     message = message.lower()
+    message = parse_symbol_substitute(message)
     symbol_list = parse_symbol(message)
     action = parse_action(message) if symbol_list else None
     return symbol_list, action
