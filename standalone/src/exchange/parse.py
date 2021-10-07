@@ -1,6 +1,7 @@
 import re
 import logging
 from typing import List, Tuple
+# from src.image_recognition import image_recognize
 
 
 def parse_symbol_regex(message: str) -> List[str]:
@@ -49,11 +50,16 @@ def parse_symbol_filter(message: str):
         return []
 
 
-def parse_symbol(message: str):
+def parse_symbol(message: str, img_path: str):
     symbol_list1 = parse_symbol_regex(message)
     symbol_list2 = parse_symbol_tokens(message)
     symbol_list3 = parse_symbol_filter(message)
     symbol_list = list(set(symbol_list1) | set(symbol_list2) | set(symbol_list3))
+
+    if img_path is not None:
+        img_symbol_list = image_recognize(img_path)
+        symbol_list = list(set(symbol_list) | set(img_symbol_list))
+
     logging.info(f"Parse symbol: {symbol_list}")
     return symbol_list
 
@@ -70,7 +76,7 @@ def parse_action(message: str):
     return action
 
 
-def parse_symbol_substitute(message: str, symbol_list: List[str]):
+def parse_symbol_substitute(message: str):
     symbol_map = {
         'α': "a",
         "ℓ": "l",
@@ -78,6 +84,7 @@ def parse_symbol_substitute(message: str, symbol_list: List[str]):
         "¢": "c",
         "є": "e",
         "$": "s",
+        "0": "o"
     }
     for i in range(26):
         symbol_map[chr(ord("Ⓐ") + i)] = chr(ord('a') + i)
@@ -94,9 +101,9 @@ def parse_symbol_substitute(message: str, symbol_list: List[str]):
     return new_str
 
 
-def parse(message: str, base: str) -> Tuple[List[str], str]:
+def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
     message = message.lower()
     message = parse_symbol_substitute(message)
-    symbol_list = parse_symbol(message)
+    symbol_list = parse_symbol(message, img_path)
     action = parse_action(message) if symbol_list else None
     return symbol_list, action

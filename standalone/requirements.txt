@@ -4,3 +4,6 @@ pyyaml
 pysimplegui
 pandas
 pyinstaller
+easyocr
+numpy
+pillow

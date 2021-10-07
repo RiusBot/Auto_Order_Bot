@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+import time
 import json
 import asyncio
 import pandas as pd
@@ -133,15 +134,28 @@ async def message_handle(log, event):
     logging.info("=============================================")
     logging.info(event.text)
     logging.info("=============================================")
-
     print(exchange_client)
-    symbol_list, action = ExchangeClient(config).parse(event.text)
+
+    latency = event.date.timestamp() - time.time()
+    if latency > float(config["other_setting"]["maximum_latency"]):
+        msg = f"latency {latency} > {config['other_setting']['maximum_latency']} too high !!  Rejected."
+        logging.info(msg)
+        log.info = msg
+        return
+
+    img_path = None
+    # if config["other_setting"]["use_image"]:
+    #     img_path = await telegram_client.download_media(event.photo, 'download_photos')
+    symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
+    log.parse = True
+
+    if symbol_list:
+        log.symbol = symbol_list
+    if action:
+        log.action = action
+
     if not symbol_list or action is None:
         return
-    else:
-        log.parse = True
-        log.symbol = symbol_list
-        log.action = action
 
     if action != "buy":
         return

@@ -42,9 +42,9 @@ class BinanceClient():
         self.markets = self.exchange.loadMarkets(True)
         logging.debug(self.markets)
 
-    def parse(self, message: str) -> Tuple[List[str], str]:
+    def parse(self, message: str, img_path: str) -> Tuple[List[str], str]:
         base = "/USDT"
-        symbol_list, action = parse(message, base)
+        symbol_list, action = parse(message, base, img_path)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -58,7 +58,7 @@ class BinanceClient():
 
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
-        return self.exchange.fetchTicker(symbol)['bid']
+        return float(self.exchange.fetchTicker(symbol)['info']["lastPrice"])
 
     def get_balance(self):
         balance = None
@@ -81,16 +81,16 @@ class BinanceClient():
         self.exchange.loadMarkets(True)
         margin = None
         if self.target == "SPOT":
-            margin = None
+            margin = 999
         elif self.target == "MARGIN":
             info = self.exchange.fetch_balance()["info"]
-            margin = None if info["marginLevel"] is None else float(info["marginLevel"])
+            margin = 999 if info["marginLevel"] is None else float(info["marginLevel"])
         elif self.target == "FUTURE":
             info = self.exchange.fetch_positions()
             maintenance_margin = 0
             for i in info:
-                maintenance_margin += i["maintenanceMargin"]
-            marginRatio = maintenance_margin / i["collateral"]
+                maintenance_margin += float(i["maintenanceMargin"])
+            marginRatio = maintenance_margin / float(i["collateral"])
             margin = marginRatio
 
         logging.info(f"Margin level/ratio: {margin}")

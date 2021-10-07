@@ -41,9 +41,9 @@ class FTXClient():
         self.markets = self.exchange.loadMarkets(True)
         logging.debug(self.markets)
 
-    def parse(self, message: str) -> Tuple[List[str], str]:
+    def parse(self, message: str, img_path: str) -> Tuple[List[str], str]:
         base = "-PERP" if self.target == "FUTURE" else "/USD"
-        symbol_list, action = parse(message, base)
+        symbol_list, action = parse(message, base, img_path)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -69,7 +69,8 @@ class FTXClient():
 
     def get_margin(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
-        return self.exchange.private_get_account()["result"]["marginFraction"]
+        margin = self.exchange.private_get_account()["result"]["marginFraction"]
+        return 999 if margin is None else float(margin)
 
     def create_market_order(self, symbol: str):
         price = self.get_price(symbol)
@@ -236,14 +237,9 @@ class FTXClient():
 
     def risk_control(self, margin: float):
         logging.info(f"Current margin: {margin}, minimum margin: {self.margin}.")
-        if self.target == "FUTURE":
-            if margin > self.margin:
-                logging.info("violtate margin risk !! Give up.")
-                return False
-        elif self.target == "MARGIN":
-            if margin < self.margin:
-                logging.info("violtate margin risk !! Give up.")
-                return False
+        if margin < self.margin:
+            logging.info("violtate margin risk !! Give up.")
+            return False
         logging.info("Margin check valid.")
         return True
 

@@ -155,6 +155,24 @@ def save_setting_layout():
     return layout
 
 
+def other_setting_layout():
+    layout = sg.Frame(
+        "Other setting",
+        [[
+            sg.Column(
+                [
+                    [sg.Checkbox('use_image', default=False, key="use_image")],
+                    [sg.Text("maximum latency"), sg.In(size=15, key="maximum_latency")],
+                ],
+                element_justification="left"
+            )
+        ]],
+        element_justification="center",
+        visible=False
+    )
+    return layout
+
+
 def config_setup(window):
     try:
         # telegram setting
@@ -173,6 +191,10 @@ def config_setup(window):
 
         # Order setting
         for key, value in config["order_setting"].items():
+            window[key].update(value=value)
+
+        # Other setting
+        for key, value in config["other_setting"].items():
             window[key].update(value=value)
 
     except Exception:
@@ -210,6 +232,10 @@ def update_config(window):
         for key in config["order_setting"]:
             config["order_setting"][key] = window[key].get()
 
+        # other setting
+        for key in config["other_setting"]:
+            config["other_setting"][key] = window[key].get()
+
         type_casting(config)
         save_config(config)
         sg.Popup(f"Update complete !!")
@@ -237,7 +263,7 @@ def run_gui():
         [
             telegram_setting_layout(),
             sg.VerticalSeparator(pad=None),
-            exchange_setting_layout(),
+            sg.Column([[exchange_setting_layout()], [other_setting_layout()]])
         ],
         [order_setting_layout()],
         [save_setting_layout()],
