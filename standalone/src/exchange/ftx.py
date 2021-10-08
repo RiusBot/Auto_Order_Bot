@@ -22,14 +22,26 @@ class FTXClient():
         self.sl = config["order_setting"]["stop_loss"]
         self.tp = config["order_setting"]["take_profit"]
         self.margin = config["order_setting"]["margin_level_ratio"]
+        self.subaccount = config["exchange_setting"]["subaccount"]
+
+        options = {
+            "defaultType": self.target.lower(),
+            "adjustForTimeDifference": True,
+            "verbose": True
+        }
+        headers = {}
+
+        if self.subaccount:
+            headers = {
+                'FTX-SUBACCOUNT': self.subaccount
+            }
+
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],
             "secret": config["exchange_setting"]["api_secret"],
-            'options': {
-                "defaultType": self.target.lower(),
-                "verbose": True
-            }
+            'options': options,
+            'headers': headers,
         })
 
         try:

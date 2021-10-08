@@ -22,15 +22,26 @@ class BinanceClient():
         self.sl = config["order_setting"]["stop_loss"]
         self.tp = config["order_setting"]["take_profit"]
         self.margin = config["order_setting"]["margin_level_ratio"]
+        self.subaccount = config["exchange_setting"]["subaccount"]
+
+        options = {
+            "defaultType": self.target.lower(),
+            "adjustForTimeDifference": True,
+            "verbose": True
+        }
+        headers = {}
+
+        if self.subaccount:
+            headers = {
+
+            }
+
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],
             "secret": config["exchange_setting"]["api_secret"],
-            'options': {
-                "defaultType": self.target.lower(),
-                "adjustForTimeDifference": True,
-                "verbose": True
-            }
+            'options': options,
+            'headers': headers
         })
 
         try:
@@ -304,6 +315,13 @@ class BinanceClient():
                     open_order = None
                     result_list.append(result)
 
-            orders_list.append((open_order, tp_order, sl_order))
+            # orders_list.append((open_order, tp_order, sl_order))
+
+            if open_order:
+                orders_list.append("buy order placed.")
+            if tp_order:
+                orders_list.append("take profit order placed.")
+            if sl_order:
+                orders_list.append("stop loss order placed.")
 
         return orders_list, result_list, margin

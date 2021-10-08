@@ -1,9 +1,12 @@
 telethon
-python-binance==1.0.14
 pyyaml
 pysimplegui
 pandas
 pyinstaller
-easyocr
-numpy
-pillow
+
+#matplotlib
+#msvc-runtime
+#easyocr
+#numpy
+#pillow
+#python-binance==1.0.14

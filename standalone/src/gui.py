@@ -48,6 +48,7 @@ def exchange_setting_layout():
                         [sg.Text("Exchange"), sg.Combo(ccxt.exchanges, size=42, key="exchange")],
                         [sg.Text("API Key"), sg.In(key="api_key")],
                         [sg.Text("API Secret"), sg.In(key="api_secret")],
+                        [sg.Text("Subaccount"), sg.In(key="subaccount")],
                     ],
                     element_justification="right"
                 )
@@ -161,14 +162,14 @@ def other_setting_layout():
         [[
             sg.Column(
                 [
-                    [sg.Checkbox('use_image', default=False, key="use_image")],
+                    [sg.Checkbox('use_image', default=False, key="use_image", disabled=True)],
                     [sg.Text("maximum latency"), sg.In(size=15, key="maximum_latency")],
                 ],
                 element_justification="left"
             )
         ]],
         element_justification="center",
-        visible=False
+        visible=True
     )
     return layout
 
@@ -253,6 +254,7 @@ def telegram_login():
     telegram_client.start(
         phone=lambda: sg.popup_get_text("Please enter your phone"),
         code_callback=lambda: sg.popup_get_text("Please enter the code you recieved"),
+        # password=lambda: sg.popup_get_text("Please enter your 2FA password")
     )
     telegram_client.disconnect()
 

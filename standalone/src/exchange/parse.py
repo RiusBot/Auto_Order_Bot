@@ -56,9 +56,9 @@ def parse_symbol(message: str, img_path: str):
     symbol_list3 = parse_symbol_filter(message)
     symbol_list = list(set(symbol_list1) | set(symbol_list2) | set(symbol_list3))
 
-    if img_path is not None:
-        img_symbol_list = image_recognize(img_path)
-        symbol_list = list(set(symbol_list) | set(img_symbol_list))
+    # if img_path is not None:
+    #     img_symbol_list = image_recognize(img_path)
+    #     symbol_list = list(set(symbol_list) | set(img_symbol_list))
 
     logging.info(f"Parse symbol: {symbol_list}")
     return symbol_list

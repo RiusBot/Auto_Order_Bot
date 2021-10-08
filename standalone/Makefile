@@ -27,7 +27,9 @@ compile-win:
 	cp -r src build-win
 	cp requirements.txt build-win/src
 	cp setup.py build-win/src
-	docker run -v "$(shell pwd)/build-win/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-windows "python -m pip install --upgrade pip && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
+	docker run -v "$(shell pwd)/build-win/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-windows "python -m pip install --upgrade pip setuptools && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
+	# matplotlib msvc-runtime easyocr numpy pillow
+	# telethon pyyaml pysimplegui pandas
 
 compile-linux:
 	# this is for compile linux elf on mac

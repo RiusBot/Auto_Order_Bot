@@ -76,7 +76,10 @@ class LogHandler():
         df.to_csv(path, index=False)
 
     def __str__(self):
-        return json.dumps(self.to_log(), indent=4)
+        tmp = self.to_log().copy()
+        if isinstance(tmp["error"], str):
+            tmp["error"] = tmp["error"][:1024]
+        return json.dumps(tmp, indent=4)
 
     async def notify(self, message):
         await message.forward_to(notify_channel)
