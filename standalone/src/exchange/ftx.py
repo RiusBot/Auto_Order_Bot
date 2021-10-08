@@ -36,6 +36,7 @@ class FTXClient():
                 'FTX-SUBACCOUNT': self.subaccount
             }
 
+        logging.info(f"{headers}")
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],

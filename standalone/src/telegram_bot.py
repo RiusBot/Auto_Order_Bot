@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import json
+import base64
 import asyncio
 import pandas as pd
 import logging
@@ -126,6 +127,16 @@ def error_handler(func):
     return warp
 
 
+def parse(message: str):
+    encoded = json.loads(message).get("encoded")
+    pro_message = base64.b64decode(encoded.encode("ascii")).decode("ascii")
+    pro_message = json.loads(pro_message)
+    symbol_list = pro_message["symbol_list"]
+    action = pro_message["action"]
+    logging.info(f"symbol_list: {symbol_list}, action: {action}")
+    return symbol_list, action
+
+
 @error_handler
 async def message_handle(log, event):
 
@@ -149,7 +160,8 @@ async def message_handle(log, event):
     img_path = None
     # if config["other_setting"]["use_image"]:
     #     img_path = await telegram_client.download_media(event.photo, 'download_photos')
-    symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
+    # symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
+    symbol_list, action = parse(event.text)
     log.parse = True
 
     if symbol_list:

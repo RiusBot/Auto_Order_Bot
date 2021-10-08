@@ -101,7 +101,7 @@ class BinanceClient():
             maintenance_margin = 0
             for i in info:
                 maintenance_margin += float(i["maintenanceMargin"])
-            marginRatio = maintenance_margin / float(i["collateral"])
+            marginRatio = 0 if float(i["collateral"]) == 0 else maintenance_margin / float(i["collateral"])
             margin = marginRatio
 
         logging.info(f"Margin level/ratio: {margin}")

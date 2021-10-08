@@ -228,6 +228,7 @@ def update_config(window):
         config["exchange_setting"]["exchange"] = window["exchange"].get()
         config["exchange_setting"]["api_key"] = window["api_key"].get()
         config["exchange_setting"]["api_secret"] = window["api_secret"].get()
+        config["exchange_setting"]["subaccount"] = window["subaccount"].get()
 
         # order setting
         for key in config["order_setting"]:
@@ -283,7 +284,7 @@ def run_gui():
         )]
     ]
 
-    window = sg.Window("Auto Order Bot", layout, finalize=True)
+    window = sg.Window("Auto Order Bot Pro", layout, finalize=True)
     config_setup(window)
 
     while True:
