@@ -1,7 +1,23 @@
 import re
+import json
+import base64
 import logging
 from typing import List, Tuple
 # from src.image_recognition import image_recognize
+
+
+def parse_pro(message: str):
+    symbol_list = []
+    action = None
+    try:
+        pro_message = base64.b64decode(message.encode("ascii")).decode("ascii")
+        pro_message = json.loads(pro_message)
+        symbol_list = pro_message["symbol_list"]
+        action = pro_message["action"]
+    except Exception:
+        logging.exception("")
+    logging.info(f"symbol_list: {symbol_list}, action: {action}")
+    return symbol_list, action
 
 
 def parse_symbol_regex(message: str) -> List[str]:

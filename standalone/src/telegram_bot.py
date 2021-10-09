@@ -3,16 +3,14 @@ import os
 import sys
 import time
 import json
-import base64
 import asyncio
 import pandas as pd
 import logging
 import traceback
 from telethon import TelegramClient, events, sync
 from src.exchange import ExchangeClient
+from src.exchange.parse import parse_pro
 from src.config import config
-from typing import List, Tuple
-import PySimpleGUI as sg
 
 
 exchange_client = None
@@ -127,15 +125,6 @@ def error_handler(func):
     return warp
 
 
-def parse(message: str):
-    pro_message = base64.b64decode(message.encode("ascii")).decode("ascii")
-    pro_message = json.loads(pro_message)
-    symbol_list = pro_message["symbol_list"]
-    action = pro_message["action"]
-    logging.info(f"symbol_list: {symbol_list}, action: {action}")
-    return symbol_list, action
-
-
 @error_handler
 async def message_handle(log, event):
 
@@ -161,7 +150,7 @@ async def message_handle(log, event):
     #     img_path = await telegram_client.download_media(event.photo, 'download_photos')
 
     if config["other_setting"]["pro"]:
-        symbol_list, action = parse(event.text)
+        symbol_list, action = parse_pro(event.text)
     else:
         symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
     log.parse = True

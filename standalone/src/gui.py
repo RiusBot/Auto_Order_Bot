@@ -1,11 +1,15 @@
 import ccxt
+import json
+import base64
 import traceback
 import logging
 import threading
 import PySimpleGUI as sg
 from telethon import TelegramClient
+from src.exchange import ExchangeClient
+from src.exchange.parse import parse_pro
 from src.config import config, save_config, type_casting
-from src.telegram_bot import telegram_start, get_all_dialogs
+from src.telegram_bot import telegram_start
 
 
 def telegram_setting_layout():
@@ -174,6 +178,28 @@ def other_setting_layout():
     return layout
 
 
+def test_layout():
+    return [
+        [sg.Frame(
+            "Generate encoded message",
+            [
+                [sg.Text("symbol  : "), sg.Input(key="symbol")],
+                [sg.Text("action    : "), sg.Input(key="action")],
+                [sg.Button("generate", key="generate")],
+                [sg.Text("encoded :"), sg.Input(key="gen_output")],
+            ]
+        )],
+        [sg.Frame(
+            "Parsing",
+            [
+                [sg.Text("Input message"), sg.Multiline(size=(100, 10), key="test_input")],
+                [sg.Text("Results           "), sg.Multiline(size=(100, 2), key="test_output")],
+                [sg.Button("Parse", key="parse")],
+            ]
+        )],
+    ]
+
+
 def config_setup(window):
     try:
         # telegram setting
@@ -184,19 +210,31 @@ def config_setup(window):
                 elif value == "Perpetual":
                     window["P_signal"].update(value=True)
             else:
-                window[key].update(value=value)
+                try:
+                    window[key].update(value=value)
+                except Exception:
+                    pass
 
         # exchange setting
         for key, value in config["exchange_setting"].items():
-            window[key].update(value=value)
+            try:
+                window[key].update(value=value)
+            except Exception:
+                pass
 
         # Order setting
         for key, value in config["order_setting"].items():
-            window[key].update(value=value)
+            try:
+                window[key].update(value=value)
+            except Exception:
+                pass
 
         # Other setting
         for key, value in config["other_setting"].items():
-            window[key].update(value=value)
+            try:
+                window[key].update(value=value)
+            except Exception:
+                pass
 
     except Exception:
         logging.exception("")
@@ -228,21 +266,31 @@ def update_config(window):
             elif key == "signal_channel":
                 continue
             else:
-                config["telegram_setting"][key] = window[key].get()
+                try:
+                    config["telegram_setting"][key] = window[key].get()
+                except Exception:
+                    pass
 
         # exchange setting
-        config["exchange_setting"]["exchange"] = window["exchange"].get()
-        config["exchange_setting"]["api_key"] = window["api_key"].get()
-        config["exchange_setting"]["api_secret"] = window["api_secret"].get()
-        config["exchange_setting"]["subaccount"] = window["subaccount"].get()
+        for key in config["exchange_setting"]:
+            try:
+                config["exchange_setting"][key] = window[key].get()
+            except Exception:
+                pass
 
         # order setting
         for key in config["order_setting"]:
-            config["order_setting"][key] = window[key].get()
+            try:
+                config["order_setting"][key] = window[key].get()
+            except Exception:
+                pass
 
         # other setting
         for key in config["other_setting"]:
-            config["other_setting"][key] = window[key].get()
+            try:
+                config["other_setting"][key] = window[key].get()
+            except Exception:
+                pass
 
         type_casting(config)
         save_config(config)
@@ -281,17 +329,21 @@ def run_gui():
         [sg.Button("Start")],
         [sg.Multiline(size=(120, 30), key="log", reroute_stderr=True)]
     ]
+    test_tab = test_layout()
     layout = [
         [sg.TabGroup(
             [[
                 sg.Tab("Setting", setting_tab, element_justification="center"),
-                sg.Tab("Run", main_tab, element_justification="center")
+                sg.Tab("Run", main_tab, element_justification="center"),
+                sg.Tab("Test", test_tab, element_justification="left")
             ]]
         )]
     ]
 
     window = sg.Window("Auto Order Bot Pro", layout, finalize=True)
     config_setup(window)
+
+    # window["gen_output"].BackgroundColor = window["symbol"].BackgroundColor
 
     while True:
         event, values = window.read()
@@ -302,6 +354,21 @@ def run_gui():
             sg.Popup("Login Success.")
         if event == "Save":
             update_config(window)
+        if event == "parse":
+            test_input = window["test_input"].get()
+            if config["other_setting"]["pro"]:
+                symbol_list, action = parse_pro(test_input)
+            else:
+                symbol_list, action = ExchangeClient(config).parse(test_input, None)
+            test_output = f"symbol_list: {symbol_list}\naction: {action}"
+            window["test_output"].print(test_output)
+        if event == "generate":
+            secret_msg = {
+                "symbol_list": [window["symbol"].get()],
+                "action": window["action"].get()
+            }
+            secret_msg = base64.b64encode(json.dumps(secret_msg).encode("ascii")).decode('ascii')
+            window["gen_output"].update(secret_msg)
         if event == "Start":
             try:
                 telegram_thread = threading.Thread(target=telegram_start, args=(config, window), daemon=True)

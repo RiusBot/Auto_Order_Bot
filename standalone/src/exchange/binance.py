@@ -97,11 +97,13 @@ class BinanceClient():
             info = self.exchange.fetch_balance()["info"]
             margin = 999 if info["marginLevel"] is None else float(info["marginLevel"])
         elif self.target == "FUTURE":
-            info = self.exchange.fetch_positions()
-            maintenance_margin = 0
-            for i in info:
-                maintenance_margin += float(i["maintenanceMargin"])
-            marginRatio = 0 if float(i["collateral"]) == 0 else maintenance_margin / float(i["collateral"])
+            info = self.exchange.fetch_balance()
+            maintenance_margin = float(info["info"]["totalMaintMargin"])
+            margin_balance = float(info["info"]["totalMarginBalance"])
+            if margin_balance == 0:
+                marginRatio = 0
+            else:
+                marginRatio = maintenance_margin / margin_balance
             margin = marginRatio
 
         logging.info(f"Margin level/ratio: {margin}")
