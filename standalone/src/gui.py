@@ -82,8 +82,8 @@ def order_setting_layout():
                 ),
                 sg.Column(
                     [
-                        [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("%")],
-                        [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("%")],
+                        [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("")],
+                        [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("")],
                     ],
                     element_justification="right"
                 ),
@@ -162,7 +162,7 @@ def other_setting_layout():
         [[
             sg.Column(
                 [
-                    [sg.Checkbox('use_image', default=False, key="use_image", disabled=True)],
+                    [sg.Checkbox('pro', default=False, key="pro")],
                     [sg.Text("maximum latency"), sg.In(size=15, key="maximum_latency")],
                 ],
                 element_justification="left"
@@ -206,6 +206,12 @@ def config_setup(window):
 def validate_config(config: dict):
     if (config["order_setting"]["stop_loss"] == 0) ^ (config["order_setting"]["take_profit"] == 0):
         raise Exception("Stop loss and Take profit has to be both zero or both set.")
+
+    if not (config["order_setting"]["stop_loss"] >= 0 and config["order_setting"]["stop_loss"] <= 1):
+        raise Exception("0 <= Stop loss <= 1.")
+
+    if not (config["order_setting"]["take_profit"] >= 0 and config["order_setting"]["take_profit"] <= 1):
+        raise Exception("0 <= Take profit <= 1.")
 
 
 def update_config(window):

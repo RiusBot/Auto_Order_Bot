@@ -128,8 +128,7 @@ def error_handler(func):
 
 
 def parse(message: str):
-    encoded = json.loads(message).get("encoded")
-    pro_message = base64.b64decode(encoded.encode("ascii")).decode("ascii")
+    pro_message = base64.b64decode(message.encode("ascii")).decode("ascii")
     pro_message = json.loads(pro_message)
     symbol_list = pro_message["symbol_list"]
     action = pro_message["action"]
@@ -160,8 +159,11 @@ async def message_handle(log, event):
     img_path = None
     # if config["other_setting"]["use_image"]:
     #     img_path = await telegram_client.download_media(event.photo, 'download_photos')
-    # symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
-    symbol_list, action = parse(event.text)
+
+    if config["other_setting"]["pro"]:
+        symbol_list, action = parse(event.text)
+    else:
+        symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
     log.parse = True
 
     if symbol_list:
