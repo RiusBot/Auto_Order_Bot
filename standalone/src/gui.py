@@ -18,8 +18,8 @@ def telegram_setting_layout():
         [
             # [sg.Combo(["Perpetual Data", "Rose Premium"])],
             [
-                sg.Radio("Perpetual Data", "telegram signal", key="P_signal", disabled=True, default=False),
-                sg.Radio("Rose Premium", "telegram signal", key="R_signal", default=True),
+                sg.Radio("Perpetual Data", "telegram signal", key="P_signal"),
+                sg.Radio("Rose Premium", "telegram signal", key="R_signal"),
                 # sg.Radio("Notification", "telegram signal", key="N_signal")
             ],
 
@@ -259,9 +259,9 @@ def update_config(window):
         # telegram setting
         for key in config["telegram_setting"]:
             if key == "signal":
-                if window["R_signal"]:
+                if window["R_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Rose"
-                elif window["P_signal"] is True:
+                elif window["P_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Perpetual"
             elif key == "signal_channel":
                 continue

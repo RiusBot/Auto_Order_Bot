@@ -3,6 +3,7 @@ import json
 import base64
 import logging
 from typing import List, Tuple
+from src.config import config
 # from src.image_recognition import image_recognize
 
 
@@ -14,6 +15,8 @@ def parse_pro(message: str):
         pro_message = json.loads(pro_message)
         symbol_list = pro_message["symbol_list"]
         action = pro_message["action"]
+        if config["exchange_setting"]["exchange"] == "ftx" and config["order_setting"]["target"] == "FUTURE":
+            symbol_list = [i.replace("/USDT", "-PERP") for i in symbol_list]
     except Exception:
         logging.exception("")
     logging.info(f"symbol_list: {symbol_list}, action: {action}")
@@ -118,8 +121,13 @@ def parse_symbol_substitute(message: str):
 
 
 def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
-    message = message.lower()
-    message = parse_symbol_substitute(message)
-    symbol_list = parse_symbol(message, img_path)
-    action = parse_action(message) if symbol_list else None
+    if config["telegram_setting"]["signal"] == "Rose":
+        message = message.lower()
+        message = parse_symbol_substitute(message)
+        symbol_list = parse_symbol(message, img_path)
+        action = parse_action(message) if symbol_list else None
+    elif config["telegram_setting"]["signal"] == "Perpetual":
+        symbol_list = re.findall('#[^\s]+', message)
+        symbol_list = [i.replace('#', '') for i in symbol_list]
+        action = "buy" if "看漲" in message else None
     return symbol_list, action

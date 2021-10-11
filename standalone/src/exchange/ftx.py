@@ -70,6 +70,7 @@ class FTXClient():
 
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
+        symbol = symbol.replace("USDT", "USD")
         return self.exchange.fetchTicker(symbol)['bid']
 
     def get_balance(self):
@@ -173,25 +174,25 @@ class FTXClient():
                     sell_order = self.exchange.createMarketSellOrder(symbol, amount)
                     logging.info("Sell immediately.")
                     return None, None, sell_order
-        elif self.target == "MARGIN":
-            try:
-                oco_order = self.exchange.sapi_post_margin_order_oco({
-                    "symbol": symbol,
-                    "side": "SELL",
-                    "quantity": amount,
-                    "price": tp_price,
-                    "stopPrice": sl_price,
-                    "StopLimitPrice": sl_price,
-                    "stopLimitTimeInForce": "GTC"
-                })
-                tp_order, sl_order = self.process_oco_order(oco_order)
+        # elif self.target == "MARGIN":
+        #     try:
+        #         oco_order = self.exchange.sapi_post_margin_order_oco({
+        #             "symbol": symbol,
+        #             "side": "SELL",
+        #             "quantity": amount,
+        #             "price": tp_price,
+        #             "stopPrice": sl_price,
+        #             "StopLimitPrice": sl_price,
+        #             "stopLimitTimeInForce": "GTC"
+        #         })
+        #         tp_order, sl_order = self.process_oco_order(oco_order)
 
-            except Exception as e:
-                logging.info(str(e))
-                if "-2021" in e.args[0]:
-                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
-                    logging.info("Sell immediately.")
-                    return None, None, sell_order
+        #     except Exception as e:
+        #         logging.info(str(e))
+        #         if "-2021" in e.args[0]:
+        #             sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+        #             logging.info("Sell immediately.")
+        #             return None, None, sell_order
 
         return tp_order, sl_order, None
 
