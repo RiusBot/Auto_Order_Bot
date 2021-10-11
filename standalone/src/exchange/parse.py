@@ -15,8 +15,11 @@ def parse_pro(message: str):
         pro_message = json.loads(pro_message)
         symbol_list = pro_message["symbol_list"]
         action = pro_message["action"]
-        if config["exchange_setting"]["exchange"] == "ftx" and config["order_setting"]["target"] == "FUTURE":
-            symbol_list = [i.replace("/USDT", "-PERP") for i in symbol_list]
+        if config["exchange_setting"]["exchange"] == "ftx":
+            if config["order_setting"]["target"] == "FUTURE":
+                symbol_list = [i.replace("/USDT", "-PERP") for i in symbol_list]
+            else:
+                symbol_list = [i.replace("/USDT", "/USD") for i in symbol_list]
     except Exception:
         logging.exception("")
     logging.info(f"symbol_list: {symbol_list}, action: {action}")
@@ -40,9 +43,10 @@ def parse_symbol_tokens(message: str):
     try:
         symbol_list = []
         if "setup" in message:
-            for token in message.split(" "):
-                token = re.compile("[^a-zA-Z0-9]").sub('', token)
-                symbol_list.append(token)
+            for token in re.split("\n| ", message):
+                if token:
+                    token = re.compile("[^a-zA-Z0-9]").sub('', token)
+                    symbol_list.append(token)
         logging.info(f"Backup parsing: {symbol_list}")
         return symbol_list
     except Exception:
