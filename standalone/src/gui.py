@@ -72,6 +72,7 @@ def order_setting_layout():
                     [
                         [sg.Text("Target"), sg.Combo(["SPOT", "MARGIN", "FUTURE"], size=15, key="target")],
                         [sg.Checkbox('Test only', default=True, key="test_only")],
+                        [sg.Checkbox('No duplicate order', default=True, key="no_duplicate")],
                         [sg.Radio('Limit', "order_type", key="limit")],
                         [sg.Radio("Market", "order_type", key="market")],
                     ],
@@ -81,6 +82,7 @@ def order_setting_layout():
                     [
                         [sg.Text("Quantity"), sg.In(size=15, key="quantity")],
                         [sg.Text("Leverage"), sg.In(size=15, key="leverage")],
+                        [sg.Text("minimum margin\nlevel/ratio"), sg.In(size=15, key="margin_level_ratio")],
                     ],
                     element_justification="right"
                 ),
@@ -88,13 +90,14 @@ def order_setting_layout():
                     [
                         [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("")],
                         [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("")],
+                        [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)]
                     ],
                     element_justification="right"
                 ),
                 sg.Column(
                     [
-                        [sg.Text("minimum margin level/ratio"), sg.In(size=15, key="margin_level_ratio")],
-                        [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)]
+                        [sg.Text("long"), sg.In(size=25, key="long")],
+                        [sg.Text("short"), sg.In(size=25, key="short")],
                     ],
                     element_justification="right"
                 ),
@@ -166,7 +169,7 @@ def other_setting_layout():
         [[
             sg.Column(
                 [
-                    [sg.Checkbox('pro', default=False, key="pro")],
+                    [sg.Checkbox('Rose For Bot', default=False, key="pro")],
                     [sg.Text("maximum latency"), sg.In(size=15, key="maximum_latency")],
                 ],
                 element_justification="left"
@@ -202,6 +205,8 @@ def test_layout():
 
 def config_setup(window):
     try:
+        type_casting(config)
+
         # telegram setting
         for key, value in config["telegram_setting"].items():
             if key == "signal":
@@ -229,6 +234,13 @@ def config_setup(window):
             except Exception:
                 pass
 
+        # keyword setting
+        for key, value in config["keywords"].items():
+            try:
+                window[key].update(value=value)
+            except Exception:
+                pass
+
         # Other setting
         for key, value in config["other_setting"].items():
             try:
@@ -242,7 +254,7 @@ def config_setup(window):
 
 
 def validate_config(config: dict):
-    if (config["order_setting"]["stop_loss"] == 0) ^ (config["order_setting"]["take_profit"] == 0):
+    if (config["order_setting"]["stop_loss"] != 0) ^ (config["order_setting"]["take_profit"] != 0):
         raise Exception("Stop loss and Take profit has to be both zero or both set.")
 
     if not (config["order_setting"]["stop_loss"] >= 0 and config["order_setting"]["stop_loss"] <= 1):
@@ -254,6 +266,7 @@ def validate_config(config: dict):
 
 def update_config(window):
     try:
+        type_casting(config)
         validate_config(config)
 
         # telegram setting
@@ -263,33 +276,45 @@ def update_config(window):
                     config["telegram_setting"]["signal"] = "Rose"
                 elif window["P_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Perpetual"
-            elif key == "signal_channel":
-                continue
+            elif key == "signal_channel" and window["P_signal"].get() is True:
+                config["telegram_setting"][key] = window[key].get()
             else:
                 try:
                     config["telegram_setting"][key] = window[key].get()
-                except Exception:
+                except KeyError:
                     pass
 
         # exchange setting
         for key in config["exchange_setting"]:
             try:
                 config["exchange_setting"][key] = window[key].get()
-            except Exception:
+            except KeyError:
                 pass
 
         # order setting
         for key in config["order_setting"]:
             try:
                 config["order_setting"][key] = window[key].get()
-            except Exception:
+            except KeyError:
+                pass
+
+        # keyword setting
+        for key, value in config["keywords"].items():
+            try:
+                try:
+                    keywords = list(eval(window[key].get()))
+                except Exception:
+                    keywords = [i for i in window[key].get().split(" ") if i]
+
+                config["keywords"][key] = keywords
+            except KeyError:
                 pass
 
         # other setting
         for key in config["other_setting"]:
             try:
                 config["other_setting"][key] = window[key].get()
-            except Exception:
+            except KeyError:
                 pass
 
         type_casting(config)

@@ -17,12 +17,13 @@ class BinanceClient():
         self.target = config["order_setting"]["target"]
         self.order_type = "Limit" if config["order_setting"]["limit"] is True else "Market"
         self.hold = config["order_setting"]["hold"]
-        self.quantity = config["order_setting"]["quantity"]
-        self.leverage = config["order_setting"]["leverage"]
-        self.sl = config["order_setting"]["stop_loss"]
-        self.tp = config["order_setting"]["take_profit"]
-        self.margin = config["order_setting"]["margin_level_ratio"]
+        self.quantity = float(config["order_setting"]["quantity"])
+        self.leverage = float(config["order_setting"]["leverage"])
+        self.sl = float(config["order_setting"]["stop_loss"])
+        self.tp = float(config["order_setting"]["take_profit"])
+        self.margin = float(config["order_setting"]["margin_level_ratio"])
         self.subaccount = config["exchange_setting"]["subaccount"]
+        self.no_duplicate = config["order_setting"]["no_duplicate"]
 
         options = {
             "defaultType": self.target.lower(),
@@ -134,7 +135,7 @@ class BinanceClient():
 
     def create_oco_order(self, symbol: str, open_order):
         amount = float(open_order["amount"])
-        price = float(open_order["average"])
+        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
@@ -285,6 +286,21 @@ class BinanceClient():
         logging.info("Margin check valid.")
         return True
 
+    def check_duplicate_and_giveup(self, symbol: str):
+        if self.no_duplicate:
+            if self.target == "SPOT" or self.target == "MARGIN":
+                token = symbol.split('/')[0]
+                asset = self.exchange.fetch_balance()["total"]
+                return True if asset.get(token, 0) > 0 else False
+
+            elif self.target == "FUTURE":
+                positions = self.exchange.fetchPositions()
+                for position in positions:
+                    if position['symbol'] == symbol:
+                        return True if position['entryPrice'] is not None else False
+
+        return False
+
     def run(self, symbol_list: str):
 
         logging.info("Start making order.")
@@ -301,6 +317,10 @@ class BinanceClient():
 
             if self.test_only:
                 logging.info("Test only. No order made.")
+                continue
+
+            if self.check_duplicate_and_giveup(symbol):
+                logging.info(f"{symbol} position already exists. No order made.")
                 continue
 
             if self.order_type == "Limit":

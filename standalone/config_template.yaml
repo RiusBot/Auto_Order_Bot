@@ -20,7 +20,7 @@ path:
 telegram_setting:
   notify_channel: Bot Notify
   signal: Rose
-  signal_channel: 🌹 Rose Premium Signal 2021
+  signal_channel: 
   telegram_api_hash: 
   telegram_api_id: 
   test_channel: test

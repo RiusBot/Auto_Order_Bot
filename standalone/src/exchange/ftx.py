@@ -23,6 +23,7 @@ class FTXClient():
         self.tp = config["order_setting"]["take_profit"]
         self.margin = config["order_setting"]["margin_level_ratio"]
         self.subaccount = config["exchange_setting"]["subaccount"]
+        self.no_duplicate = config["order_setting"]["no_duplicate"]
 
         options = {
             "defaultType": self.target.lower(),
@@ -36,7 +37,7 @@ class FTXClient():
                 'FTX-SUBACCOUNT': self.subaccount
             }
 
-        logging.info(f"{headers}")
+        logging.info(f"headers: {headers}")
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],
@@ -99,6 +100,7 @@ class FTXClient():
 
     def create_limit_order(self, symbol: str):
         price = self.get_price(symbol)
+        price = 1
         amount = self.quantity / price * self.leverage
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
         order["average"] = order.get("price", price)
@@ -110,8 +112,9 @@ class FTXClient():
         return order
 
     def create_oco_order(self, symbol: str, open_order):
+        open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
-        price = float(open_order["average"])
+        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
@@ -257,6 +260,21 @@ class FTXClient():
         logging.info("Margin check valid.")
         return True
 
+    def check_duplicate_and_giveup(self, symbol: str):
+        if self.no_duplicate:
+            if self.target == "SPOT" or self.target == "MARGIN":
+                token = symbol.split('/')[0]
+                asset = self.exchange.fetch_balance()["total"]
+                return True if asset.get(token, 0) > 0 else False
+
+            elif self.target == "FUTURE":
+                positions = self.exchange.fetchPositions()
+                for position in positions:
+                    if position['future'] == symbol:
+                        return True if position['size'] > 0 else False
+
+        return False
+
     def run(self, symbol_list: str):
 
         logging.info("Start making order.")
@@ -275,6 +293,10 @@ class FTXClient():
                 logging.info("Test only. No order made.")
                 continue
 
+            if self.check_duplicate_and_giveup(symbol):
+                logging.info(f"{symbol} position already exists. No order made.")
+                continue
+
             if self.order_type == "Limit":
                 open_order = self.create_limit_order(symbol)
             elif self.order_type == "Market":
@@ -289,6 +311,13 @@ class FTXClient():
                     open_order = None
                     result_list.append(result)
 
-            orders_list.append((open_order, tp_order, sl_order))
+            # orders_list.append((open_order, tp_order, sl_order))
+
+            if open_order:
+                orders_list.append("buy order placed.")
+            if tp_order:
+                orders_list.append("take profit order placed.")
+            if sl_order:
+                orders_list.append("stop loss order placed.")
 
         return orders_list, result_list, margin

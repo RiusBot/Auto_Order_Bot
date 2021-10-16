@@ -21,7 +21,7 @@ def parse_pro(message: str):
             else:
                 symbol_list = [i.replace("/USDT", "/USD") for i in symbol_list]
     except Exception:
-        logging.exception("")
+        logging.info("Not encoded message.")
     logging.info(f"symbol_list: {symbol_list}, action: {action}")
     return symbol_list, action
 
@@ -89,10 +89,10 @@ def parse_symbol(message: str, img_path: str):
 
 def parse_action(message: str):
     action = None
-    substring_list = ["buy", "long"]
+    substring_list = config["keywords"]["long"]
     if any(map(message.split().__contains__, substring_list)):
         action = "buy"
-    substring_list = ["close", "closed", "cut", "stop", "stopped", "reach", "reached", "sell"]
+    substring_list = config["keywords"]["short"]
     if any(map(message.split().__contains__, substring_list)):
         action = "sell"
     logging.info(f"Parse action: {action}")
