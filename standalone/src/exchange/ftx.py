@@ -100,7 +100,6 @@ class FTXClient():
 
     def create_limit_order(self, symbol: str):
         price = self.get_price(symbol)
-        price = 1
         amount = self.quantity / price * self.leverage
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
         order["average"] = order.get("price", price)
@@ -118,84 +117,44 @@ class FTXClient():
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
+        tp_order = None
+        sl_order = None
 
-        if self.target == "FUTURE":
-            try:
-                tp_order = self.exchange.create_order(
-                    symbol,
-                    type="TAKE_PROFIT_MARKET",
-                    side="SELL",
-                    amount=amount,
-                    params={
-                        "stopPrice": tp_price,
-                        "closePosition": True,
-                        "priceProtect": True
-                    }
-                )
-            except Exception as e:
-                logging.info(str(e))
-                if "-2021" in e.args[0]:
-                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
-                    logging.info("Sell immediately.")
-                    return None, None, sell_order
+        try:
+            tp_order = self.exchange.private_post_conditional_orders(
+                params={
+                    "market": symbol,
+                    "side": "sell",
+                    "triggerPrice": tp_price,
+                    "size": amount,
+                    "type": "takeProfit",
+                    "reduceOnly": True
+                }
+            )
+        except Exception as e:
+            logging.info(str(e))
+            if "-2021" in e.args[0]:
+                sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                logging.info("Sell immediately.")
+                return None, None, sell_order
 
-            try:
-                sl_order = self.exchange.create_order(
-                    symbol,
-                    type="STOP_MARKET",
-                    side="SELL",
-                    amount=amount,
-                    params={
-                        "stopPrice": sl_price,
-                        "closePosition": True,
-                        "priceProtect": True
-                    }
-                )
-            except Exception as e:
-                logging.info(str(e))
-                if "-2021" in e.args[0]:
-                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
-                    logging.info("Sell immediately.")
-                    return None, None, sell_order
-
-        elif self.target == "SPOT":
-            try:
-                oco_order = self.exchange.private_post_order_oco({
-                    "symbol": symbol.replace("/", ""),
-                    "side": "SELL",
-                    "quantity": amount,
-                    "price": tp_price,
-                    "stopPrice": sl_price,
-                    "StopLimitPrice": sl_price,
-                    "stopLimitTimeInForce": "GTC"
-                })
-                tp_order, sl_order = self.process_oco_order(oco_order)
-
-            except Exception as e:
-                logging.info(str(e))
-                if "-2021" in e.args[0]:
-                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
-                    logging.info("Sell immediately.")
-                    return None, None, sell_order
-        # elif self.target == "MARGIN":
-        #     try:
-        #         oco_order = self.exchange.sapi_post_margin_order_oco({
-        #             "symbol": symbol,
-        #             "side": "SELL",
-        #             "quantity": amount,
-        #             "price": tp_price,
-        #             "stopPrice": sl_price,
-        #             "StopLimitPrice": sl_price,
-        #             "stopLimitTimeInForce": "GTC"
-        #         })
-        #         tp_order, sl_order = self.process_oco_order(oco_order)
-
-        #     except Exception as e:
-        #         logging.info(str(e))
-        #         if "-2021" in e.args[0]:
-        #             sell_order = self.exchange.createMarketSellOrder(symbol, amount)
-        #             logging.info("Sell immediately.")
-        #             return None, None, sell_order
+        try:
+            sl_order = self.exchange.private_post_conditional_orders(
+                params={
+                    "market": symbol,
+                    "side": "buy",
+                    "triggerPrice": sl_price,
+                    "size": amount,
+                    "type": "stop",
+                    "reduceOnly": True
+                }
+            )
+        except Exception as e:
+            logging.info(str(e))
+            if "-2021" in e.args[0]:
+                sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                logging.info("Sell immediately.")
+                return None, None, sell_order
 
         return tp_order, sl_order, None
 
@@ -265,8 +224,10 @@ class FTXClient():
             if self.target == "SPOT" or self.target == "MARGIN":
                 token = symbol.split('/')[0]
                 asset = self.exchange.fetch_balance()["total"]
-                return True if asset.get(token, 0) > 0 else False
-
+                amount = float(asset.get(token, 0))
+                price = self.get_price(symbol)
+                notional = amount * price
+                return True if notional > 1 else False
             elif self.target == "FUTURE":
                 positions = self.exchange.fetchPositions()
                 for position in positions:

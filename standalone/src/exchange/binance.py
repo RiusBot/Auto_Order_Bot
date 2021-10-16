@@ -139,6 +139,8 @@ class BinanceClient():
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
+        tp_order = None
+        sl_order = None
 
         if self.target == "FUTURE":
             try:
@@ -291,8 +293,10 @@ class BinanceClient():
             if self.target == "SPOT" or self.target == "MARGIN":
                 token = symbol.split('/')[0]
                 asset = self.exchange.fetch_balance()["total"]
-                return True if asset.get(token, 0) > 0 else False
-
+                amount = float(asset.get(token, 0))
+                price = self.get_price(symbol)
+                notional = amount * price
+                return True if notional > 1 else False
             elif self.target == "FUTURE":
                 positions = self.exchange.fetchPositions()
                 for position in positions:
