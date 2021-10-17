@@ -60,13 +60,13 @@ def parse_symbol_filter(message: str):
     try:
         symbol_list = []
         firstline = message.split('\n')[0]
-        for m in re.compile("buy").finditer(firstline):
-            token = firstline[:m.start()]
-            token = re.compile("[^a-zA-Z0-9]").sub('', token)
-            symbol_list.append(token)
-            logging.info(f"Filter parsing: {symbol_list}")
-            break
-        return symbol_list
+        for keyword in (config["keywords"]["long"] + config["keywords"]["short"]):
+            for m in re.compile(keyword).finditer(firstline):
+                token = firstline[:m.start()]
+                token = re.compile("[^a-zA-Z0-9]").sub('', token)
+                symbol_list.append(token)
+                logging.info(f"Filter parsing: {symbol_list}")
+                return symbol_list
     except Exception:
         logging.error("Failed")
         logging.exception("")

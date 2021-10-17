@@ -142,7 +142,7 @@ class FTXClient():
             sl_order = self.exchange.private_post_conditional_orders(
                 params={
                     "market": symbol,
-                    "side": "buy",
+                    "side": "sell",
                     "triggerPrice": sl_price,
                     "size": amount,
                     "type": "stop",
@@ -231,9 +231,10 @@ class FTXClient():
             elif self.target == "FUTURE":
                 positions = self.exchange.fetchPositions()
                 for position in positions:
-                    if position['future'] == symbol:
-                        return True if position['size'] > 0 else False
+                    if position.get('future') == symbol:
+                        return True if float(position.get('size', 0)) > 0 else False
 
+        logging.info(f"{symbol} No duplicate positions")
         return False
 
     def run(self, symbol_list: str):

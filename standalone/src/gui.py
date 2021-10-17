@@ -276,8 +276,9 @@ def update_config(window):
                     config["telegram_setting"]["signal"] = "Rose"
                 elif window["P_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Perpetual"
-            elif key == "signal_channel" and window["P_signal"].get() is True:
-                config["telegram_setting"][key] = window[key].get()
+            elif key == "signal_channel":
+                if window["P_signal"].get() is True:
+                    config["telegram_setting"][key] = window[key].get()
             else:
                 try:
                     config["telegram_setting"][key] = window[key].get()
@@ -386,6 +387,7 @@ def run_gui():
             else:
                 symbol_list, action = ExchangeClient(config).parse(test_input, None)
             test_output = f"symbol_list: {symbol_list}\naction: {action}"
+            window["test_output"].update("")
             window["test_output"].print(test_output)
         if event == "generate":
             secret_msg = {
@@ -410,5 +412,6 @@ if __name__ == '__main__':
     try:
         run_gui()
     except Exception as e:
+        sg.popup(f"[CRITICAL ERROR] {str(e)}")
         logging.exception("")
         print(str(e))

@@ -300,8 +300,8 @@ class BinanceClient():
             elif self.target == "FUTURE":
                 positions = self.exchange.fetchPositions()
                 for position in positions:
-                    if position['symbol'] == symbol:
-                        return True if position['entryPrice'] is not None else False
+                    if position.get('symbol') == symbol:
+                        return True if position.get('entryPrice') is not None else False
 
         return False
 
