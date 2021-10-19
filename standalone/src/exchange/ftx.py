@@ -280,7 +280,9 @@ class FTXClient():
 
     def validate_symbol(self, symbol: str):
         self.markets = self.exchange.loadMarkets(True)
-        return symbol in self.markets
+        valid = symbol in self.markets
+        logging.info(f"{symbol} valid: {valid}")
+        return valid
 
     def risk_control(self, margin: float):
         logging.info(f"Current margin: {margin}, minimum margin: {self.margin}.")
@@ -293,6 +295,7 @@ class FTXClient():
     def check_duplicate_and_giveup(self, symbol: str):
         if self.no_duplicate:
             if self.target == "SPOT" or self.target == "MARGIN":
+                logging.info("check spot duplicate")
                 token = symbol.split('/')[0]
                 asset = self.exchange.fetch_balance()["total"]
                 amount = float(asset.get(token, 0))
@@ -300,13 +303,15 @@ class FTXClient():
                 notional = amount * price
                 return True if notional > 1 else False
             elif self.target == "FUTURE":
+                logging.info("check future duplicate")
                 positions = self.exchange.fetchPositions()
                 for position in positions:
                     if position.get('future') == symbol:
                         side = position['side']
-                        return side if float(position.get('size', 0)) > 0 else False
+                        logging.info(f"{symbol} has {side} position.")
+                        return side if position.get('entryPrice') else False
 
-        logging.info(f"{symbol} No duplicate positions")
+            logging.info(f"{symbol} No duplicate positions")
         return False
 
     def giveup_order(self, symbol: str, action: str):

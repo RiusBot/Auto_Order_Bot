@@ -236,6 +236,7 @@ def listing_layout():
 def config_setup(window):
     try:
         type_casting(config)
+        validate_config(config)
 
         # telegram setting
         for key, value in config["telegram_setting"].items():

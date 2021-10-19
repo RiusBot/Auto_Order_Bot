@@ -27,13 +27,15 @@ def configure_logging():
 def save_config(config: dict):
     backup_config(config)
     try:
-        path = config["path"]
-        path = os.path.join(os.path.dirname(path), "config.yaml")
+        path = config["application_path"]
+        path = os.path.join(path, "config.yaml")
         config["path"] = path
         with open(path, "w", encoding='utf-8') as f:
             tmp = config.copy()
-            tmp["listing_setting"].pop("whitelist")
-            tmp["listing_setting"].pop("blacklist")
+            if "whitelist" in tmp["listing_setting"]:
+                tmp["listing_setting"].pop("whitelist")
+            if "blacklist" in tmp["listing_setting"]:
+                tmp["listing_setting"].pop("blacklist")
             yaml.dump(tmp, f, allow_unicode=True, default_flow_style=False)
     except Exception as e:
         logging.exception("")
@@ -42,16 +44,14 @@ def save_config(config: dict):
 
 
 def backup_config(config: dict):
-    path = config["path"]
-    source = path
-    destination = os.path.join(os.path.dirname(path), "config_backup.yaml")
+    source = config["config_path"]
+    destination = os.path.join(config["application_path"], "config_backup.yaml")
     shutil.copyfile(source, destination)
 
 
 def restore_config(config: dict):
-    path = config["path"]
-    destination = path
-    source = os.path.join(os.path.dirname(path), "config_backup.yaml")
+    destination = config["config_path"]
+    source = os.path.join(config["application_path"], "config_backup.yaml")
     shutil.copyfile(source, destination)
     os.remove(source)
 
