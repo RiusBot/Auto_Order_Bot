@@ -208,11 +208,13 @@ def test_layout():
 
 
 def listing_layout():
+    exchange = getattr(ccxt, config["exchange_setting"]["exchange"])()
+    exchange.loadMarkets()
     return [
         [
             sg.Column([
                 [sg.Text("All markets")],
-                [sg.Listbox(values=list(ExchangeClient(config).markets.keys()), size=(40, 20), key="markets")],
+                [sg.Listbox(values=list(exchange.markets.keys()), size=(40, 20), key="markets")],
                 [sg.Button("whitelist", key="white_add"), sg.Button("blacklist", key="black_add")]
             ]),
             sg.Column([
