@@ -8,7 +8,7 @@ import PySimpleGUI as sg
 from telethon import TelegramClient
 from src.exchange import ExchangeClient
 from src.exchange.parse import parse_pro
-from src.config import config, save_config, type_casting
+from src.config import config, save_config, type_casting, save_lists
 from src.telegram_bot import telegram_start
 
 
@@ -28,6 +28,7 @@ def telegram_setting_layout():
                     [
                         [sg.Text("Telegram ID"), sg.In(key="telegram_api_id")],
                         [sg.Text("Telegram Hash"), sg.In(key="telegram_api_hash")],
+                        [sg.Text("Session name"), sg.In(key="session")],
                         [sg.Text("Signal channel"), sg.In(key="signal_channel")],  # , sg.Button("Browse", key="all_dialog1")
                         [sg.Text("Nofify channel"), sg.In(key="notify_channel")],  # , sg.Button("Browse", key="all_dialog2")
                         [sg.Text("Testing channel"), sg.In(key="test_channel")],  # , sg.Button("Browse", key="all_dialog3")
@@ -73,6 +74,7 @@ def order_setting_layout():
                         [sg.Text("Target"), sg.Combo(["SPOT", "MARGIN", "FUTURE"], size=15, key="target")],
                         [sg.Checkbox('Test only', default=True, key="test_only")],
                         [sg.Checkbox('No duplicate order', default=True, key="no_duplicate")],
+                        [sg.Checkbox('Make short order', default=True, key="make_short")],
                         [sg.Radio('Limit', "order_type", key="limit")],
                         [sg.Radio("Market", "order_type", key="market")],
                     ],
@@ -94,8 +96,10 @@ def order_setting_layout():
                     ],
                     element_justification="right"
                 ),
+                sg.VerticalSeparator(pad=None),
                 sg.Column(
                     [
+                        [sg.Text("Trigger keywords for Rose chnnel")],
                         [sg.Text("long"), sg.In(size=25, key="long")],
                         [sg.Text("short"), sg.In(size=25, key="short")],
                     ],
@@ -203,6 +207,30 @@ def test_layout():
     ]
 
 
+def listing_layout():
+    return [
+        [
+            sg.Column([
+                [sg.Text("All markets")],
+                [sg.Listbox(values=list(ExchangeClient(config).markets.keys()), size=(40, 20), key="markets")],
+                [sg.Button("whitelist", key="white_add"), sg.Button("blacklist", key="black_add")]
+            ]),
+            sg.Column([
+                [sg.Checkbox("Activate whitelist", key="whitelist_activate")],
+                [sg.Listbox(values=config["listing_setting"]["whitelist"], size=(40, 20), key="whitelist")],
+                [sg.Button("remove", key="white_rm")]
+            ]),
+            sg.Column([
+                [sg.Checkbox("Activate blacklist", key="blacklist_activate")],
+                [sg.Listbox(values=config["listing_setting"]["blacklist"], size=(40, 20), key="blacklist")],
+                [sg.Button("remove", key="black_rm")]
+            ])
+        ],
+        [sg.HorizontalSeparator(pad=None)],
+        [save_setting_layout()]
+    ]
+
+
 def config_setup(window):
     try:
         type_casting(config)
@@ -243,6 +271,13 @@ def config_setup(window):
 
         # Other setting
         for key, value in config["other_setting"].items():
+            try:
+                window[key].update(value=value)
+            except Exception:
+                pass
+
+        # listing setting
+        for key, value in config["listing_setting"].items():
             try:
                 window[key].update(value=value)
             except Exception:
@@ -318,6 +353,16 @@ def update_config(window):
             except KeyError:
                 pass
 
+        # listing setting
+        for key in config["listing_setting"]:
+            try:
+                if isinstance(window[key], sg.Listbox):
+                    config["listing_setting"][key] = window[key].get_list_values()
+                else:
+                    config["listing_setting"][key] = window[key].get()
+            except KeyError:
+                pass
+
         type_casting(config)
         save_config(config)
         sg.Popup(f"Update complete !!")
@@ -328,7 +373,7 @@ def update_config(window):
 
 def telegram_login():
     telegram_client = TelegramClient(
-        'anon',
+        config["telegram_setting"]["session"],
         config["telegram_setting"]["telegram_api_id"],
         config["telegram_setting"]["telegram_api_hash"],
     )
@@ -356,12 +401,14 @@ def run_gui():
         [sg.Multiline(size=(120, 30), key="log", reroute_stderr=True)]
     ]
     test_tab = test_layout()
+    listing_tab = listing_layout()
     layout = [
         [sg.TabGroup(
             [[
                 sg.Tab("Setting", setting_tab, element_justification="center"),
                 sg.Tab("Run", main_tab, element_justification="center"),
-                sg.Tab("Test", test_tab, element_justification="left")
+                sg.Tab("Test", test_tab, element_justification="left"),
+                sg.Tab("Listing", listing_tab, element_justification="center")
             ]]
         )]
     ]
@@ -369,10 +416,34 @@ def run_gui():
     window = sg.Window("Auto Order Bot Pro", layout, finalize=True)
     config_setup(window)
 
-    # window["gen_output"].BackgroundColor = window["symbol"].BackgroundColor
-
     while True:
         event, values = window.read()
+
+        if event == "white_add":
+            market = window["markets"].get()[0]
+            whitelist = window["whitelist"].get_list_values()
+            if market not in whitelist:
+                whitelist.append(market)
+            window["whitelist"].update(whitelist)
+        if event == "black_add":
+            market = window["markets"].get()[0]
+            blacklist = window["blacklist"].get_list_values()
+            if market not in blacklist:
+                blacklist.append(market)
+            window["blacklist"].update(blacklist)
+        if event == "white_rm":
+            market = window["whitelist"].get()[0]
+            whitelist = window["whitelist"].get_list_values()
+            if market in whitelist:
+                whitelist.remove(market)
+            window["whitelist"].update(whitelist)
+        if event == "black_rm":
+            market = window["blacklist"].get()[0]
+            blacklist = window["blacklist"].get_list_values()
+            if market in blacklist:
+                blacklist.remove(market)
+            window["blacklist"].update(blacklist)
+
         if event in (sg.WIN_CLOSED, "Exit"):
             break
         if event == "login":
@@ -380,6 +451,16 @@ def run_gui():
             sg.Popup("Login Success.")
         if event == "Save":
             update_config(window)
+        if event == "Save0":
+            try:
+                whitelist = window["whitelist"].get_list_values()
+                blacklist = window["blacklist"].get_list_values()
+                config["listing_setting"]["whitelist"] = whitelist
+                config["listing_setting"]["blacklist"] = blacklist
+                save_lists(config)
+            except Exception:
+                logging.exception("")
+                sg.Popup(f"Save listing failed !!\n\n{traceback.format_exc()}")
         if event == "parse":
             test_input = window["test_input"].get()
             if config["other_setting"]["pro"]:
@@ -403,7 +484,7 @@ def run_gui():
                     telegram_thread.start()
             except Exception:
                 logging.exception("")
-                sg.Popup(f"Update config failed !!\n\n{traceback.format_exc()}")
+                sg.Popup(f"Strat failed !!\n\n{traceback.format_exc()}")
 
     window.close()
 

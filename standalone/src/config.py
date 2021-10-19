@@ -31,7 +31,10 @@ def save_config(config: dict):
         path = os.path.join(os.path.dirname(path), "config.yaml")
         config["path"] = path
         with open(path, "w", encoding='utf-8') as f:
-            yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+            tmp = config.copy()
+            tmp["listing_setting"].pop("whitelist")
+            tmp["listing_setting"].pop("blacklist")
+            yaml.dump(tmp, f, allow_unicode=True, default_flow_style=False)
     except Exception as e:
         logging.exception("")
         restore_config(config)
@@ -69,9 +72,56 @@ def load_config() -> dict:
 
     with open(path, "r", encoding='utf-8') as f:
         config = yaml.safe_load(f)
+
+    if "listing_setting" not in config:
+        config["listing_setting"] = {
+            "whitelist_activate": False,
+            "blacklist_activate": False,
+        }
+
+    if "session" not in config["telegram_setting"]:
+        config["telegram_setting"]["session"] = "anon"
+
+    if "make_short" not in config["order_setting"]:
+        config["order_setting"]["make_short"] = False
+
     config = type_casting(config)
     config["path"] = path
+    config["config_path"] = path
+    config["application_path"] = application_path
+    load_lists(config)
     return config
+
+
+def load_lists(config: dict):
+    path = config["application_path"]
+    try:
+        content = open(os.path.join(path, "whitelist.txt"), "r").read()
+        content = [i.strip() for i in content.split()]
+        content = [i for i in content if i]
+        config["listing_setting"]["whitelist"] = content
+    except Exception:
+        logging.error("Read whitelist failed.")
+        config["listing_setting"]["whitelist"] = []
+
+    try:
+        content = open(os.path.join(path, "blacklist.txt"), "r").read()
+        content = [i.strip() for i in content.split()]
+        content = [i for i in content if i]
+        config["listing_setting"]["blacklist"] = content
+    except Exception:
+        logging.error("Read blacklist failed.")
+        config["listing_setting"]["blacklist"] = []
+
+
+def save_lists(config: dict):
+    path = config["application_path"]
+    with open(os.path.join(path, "whitelist.txt"), "w") as f:
+        for i in config["listing_setting"]["whitelist"]:
+            print(i, file=f)
+    with open(os.path.join(path, "blacklist.txt"), "w") as f:
+        for i in config["listing_setting"]["blacklist"]:
+            print(i, file=f)
 
 
 def type_casting(config: dict):

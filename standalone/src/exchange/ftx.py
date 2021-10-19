@@ -72,22 +72,22 @@ class FTXClient():
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
         symbol = symbol.replace("USDT", "USD")
-        return self.exchange.fetchTicker(symbol)['bid']
+        return float(self.exchange.fetchTicker(symbol)['bid'])
 
     def get_balance(self):
         balance = 0
         info = self.exchange.fetch_balance()["info"]
         for coin in info["reuslt"]:
             if coin['coin'] == "USD":
-                balance = coin["avaiableWithoutBorrow"]
-        return balance
+                balance = coin["availableWithoutBorrow"]
+        return float(balance)
 
     def get_margin(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
         margin = self.exchange.private_get_account()["result"]["marginFraction"]
         return 999 if margin is None else float(margin)
 
-    def create_market_order(self, symbol: str):
+    def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
         order = self.exchange.createMarketBuyOrder(symbol, amount)
@@ -98,13 +98,36 @@ class FTXClient():
         """)
         return order
 
-    def create_limit_order(self, symbol: str):
+    def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
         order["average"] = order.get("price", price)
         logging.info(f"""
-            Market Buy {symbol}
+            Limit Buy {symbol}
+            Open price : {order['average']}
+            Amount : {amount}
+        """)
+        return order
+
+    def create_market_sell(self, symbol: str):
+        price = self.get_price(symbol)
+        amount = self.quantity / price * self.leverage
+        order = self.exchange.createMarketSellOrder(symbol, amount)
+        logging.info(f"""
+            Market Sell {symbol}
+            Open price : {order['average']}
+            Amount : {amount}
+        """)
+        return order
+
+    def create_limit_sell(self, symbol: str):
+        price = self.get_price(symbol)
+        amount = self.quantity / price * self.leverage
+        order = self.exchange.createLimitSellOrder(symbol, amount, price)
+        order["average"] = order.get("price", price)
+        logging.info(f"""
+            Limit Sell {symbol}
             Open price : {order['average']}
             Amount : {amount}
         """)
@@ -154,6 +177,54 @@ class FTXClient():
             if "-2021" in e.args[0]:
                 sell_order = self.exchange.createMarketSellOrder(symbol, amount)
                 logging.info("Sell immediately.")
+                return None, None, sell_order
+
+        return tp_order, sl_order, None
+
+    def create_oco_short_order(self, symbol: str, open_order):
+        open_order = self.exchange.fetchOrder(open_order["id"])
+        amount = float(open_order["amount"])
+        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        tp_price = price * (1 - self.tp)
+        sl_price = price * (1 + self.sl)
+        logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
+        tp_order = None
+        sl_order = None
+
+        try:
+            tp_order = self.exchange.private_post_conditional_orders(
+                params={
+                    "market": symbol,
+                    "side": "buy",
+                    "triggerPrice": tp_price,
+                    "size": amount,
+                    "type": "takeProfit",
+                    "reduceOnly": True
+                }
+            )
+        except Exception as e:
+            logging.info(str(e))
+            if "-2021" in e.args[0]:
+                sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
+                logging.info("Buy immediately.")
+                return None, None, sell_order
+
+        try:
+            sl_order = self.exchange.private_post_conditional_orders(
+                params={
+                    "market": symbol,
+                    "side": "buy",
+                    "triggerPrice": sl_price,
+                    "size": amount,
+                    "type": "stop",
+                    "reduceOnly": True
+                }
+            )
+        except Exception as e:
+            logging.info(str(e))
+            if "-2021" in e.args[0]:
+                sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
+                logging.info("Buy immediately.")
                 return None, None, sell_order
 
         return tp_order, sl_order, None
@@ -232,12 +303,34 @@ class FTXClient():
                 positions = self.exchange.fetchPositions()
                 for position in positions:
                     if position.get('future') == symbol:
-                        return True if float(position.get('size', 0)) > 0 else False
+                        side = position['side']
+                        return side if float(position.get('size', 0)) > 0 else False
 
         logging.info(f"{symbol} No duplicate positions")
         return False
 
-    def run(self, symbol_list: str):
+    def giveup_order(self, symbol: str, action: str):
+        if self.target != "SPOT":
+            margin = self.get_margin(symbol)
+            if not self.risk_control(margin):
+                return True
+
+        if self.test_only:
+            logging.info("Test only. No order made.")
+            return True
+
+        if action == "sell" and self.target != "FUTURE":
+            logging.info("Sell order only for future")
+            return True
+
+        side = self.check_duplicate_and_giveup(symbol)
+        if side and side == action:
+            logging.info(f"{symbol} position already exists. No order made.")
+            return True
+
+        return False
+
+    def run(self, symbol_list: str, action: str):
 
         logging.info("Start making order.")
         orders_list = []
@@ -246,34 +339,35 @@ class FTXClient():
 
         for symbol in symbol_list:
 
-            if self.target != "SPOT":
-                margin = self.get_margin(symbol)
-                if not self.risk_control(margin):
-                    continue
-
-            if self.test_only:
-                logging.info("Test only. No order made.")
+            if self.giveup_order(symbol, action):
                 continue
 
-            if self.check_duplicate_and_giveup(symbol):
-                logging.info(f"{symbol} position already exists. No order made.")
-                continue
-
-            if self.order_type == "Limit":
-                open_order = self.create_limit_order(symbol)
-            elif self.order_type == "Market":
-                open_order = self.create_market_order(symbol)
-
+            open_order = None
             tp_order = None
             sl_order = None
-            if self.sl != 0 and self.tp != 0:
-                tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
+
+            if action == "buy":
+                if self.order_type == "Limit":
+                    open_order = self.create_limit_buy(symbol)
+                elif self.order_type == "Market":
+                    open_order = self.create_market_buy(symbol)
+            elif action == "sell":
+                if self.order_type == "Limit":
+                    open_order = self.create_limit_sell(symbol)
+                elif self.order_type == "Market":
+                    open_order = self.create_market_sell(symbol)
+
+            if open_order and self.sl != 0 and self.tp != 0:
+
+                if action == "buy":
+                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
+                elif action == "sell":
+                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order)
+
                 if sell_order is not None:
                     result = self.clean_up(open_order, sell_order, msg="oco failed")
                     open_order = None
                     result_list.append(result)
-
-            # orders_list.append((open_order, tp_order, sl_order))
 
             if open_order:
                 orders_list.append("buy order placed.")

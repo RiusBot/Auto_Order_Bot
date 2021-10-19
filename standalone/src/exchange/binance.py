@@ -7,6 +7,7 @@ from typing import List, Dict, Tuple
 from collections import defaultdict
 
 from .parse import parse
+from src.config import config
 
 
 class BinanceClient():
@@ -73,7 +74,7 @@ class BinanceClient():
         return float(self.exchange.fetchTicker(symbol)['info']["lastPrice"])
 
     def get_balance(self):
-        balance = None
+        balance = 0
         if self.target == "SPOT":
             assets = self.exchange.fetch_balance()["info"]["balances"]
             for asset in assets:
@@ -85,9 +86,9 @@ class BinanceClient():
                 if asset["asset"] == "USDT":
                     balance = asset["free"]
         elif self.target == "FUTURE":
-            balance = self.exchange.fetch_balance()["info"]['avaiableBalance']
+            balance = self.exchange.fetch_balance()["info"]['availableBalance']
         logging.info(f"Balance remain: {balance}")
-        return balance
+        return float(balance)
 
     def get_margin(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
@@ -127,7 +128,30 @@ class BinanceClient():
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
         order["average"] = order.get("price", price)
         logging.info(f"""
-            Market Buy {symbol}
+            Limit Buy {symbol}
+            Open price : {order['average']}
+            Amount : {amount}
+        """)
+        return order
+
+    def create_market_sell(self, symbol: str):
+        price = self.get_price(symbol)
+        amount = self.quantity / price * self.leverage
+        order = self.exchange.createMarketSellOrder(symbol, amount)
+        logging.info(f"""
+            Market Sell {symbol}
+            Open price : {order['average']}
+            Amount : {amount}
+        """)
+        return order
+
+    def create_limit_sell(self, symbol: str):
+        price = self.get_price(symbol)
+        amount = self.quantity / price * self.leverage
+        order = self.exchange.createLimitSellOrder(symbol, amount, price)
+        order["average"] = order.get("price", price)
+        logging.info(f"""
+            Limit Sell {symbol}
             Open price : {order['average']}
             Amount : {amount}
         """)
@@ -138,6 +162,7 @@ class BinanceClient():
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
+
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
         tp_order = None
         sl_order = None
@@ -222,6 +247,57 @@ class BinanceClient():
 
         return tp_order, sl_order, None
 
+    def create_oco_short_order(self, symbol: str, open_order):
+        amount = float(open_order["amount"])
+        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        tp_price = price * (1 - self.tp)
+        sl_price = price * (1 + self.sl)
+
+        logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
+        tp_order = None
+        sl_order = None
+
+        if self.target == "FUTURE":
+            try:
+                tp_order = self.exchange.create_order(
+                    symbol,
+                    type="TAKE_PROFIT_MARKET",
+                    side="BUY",
+                    amount=amount,
+                    params={
+                        "stopPrice": tp_price,
+                        "closePosition": True,
+                        "priceProtect": True
+                    }
+                )
+            except Exception as e:
+                logging.info(str(e))
+                if "-2021" in e.args[0]:
+                    sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
+                    logging.info("Buy immediately.")
+                    return None, None, sell_order
+
+            try:
+                sl_order = self.exchange.create_order(
+                    symbol,
+                    type="STOP_MARKET",
+                    side="BUY",
+                    amount=amount,
+                    params={
+                        "stopPrice": sl_price,
+                        "closePosition": True,
+                        "priceProtect": True
+                    }
+                )
+            except Exception as e:
+                logging.info(str(e))
+                if "-2021" in e.args[0]:
+                    sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
+                    logging.info("Buy immediately.")
+                    return None, None, sell_order
+
+        return tp_order, sl_order, None
+
     def process_oco_order(self, oco_order):
         tp_order = None
         sl_order = None
@@ -301,11 +377,32 @@ class BinanceClient():
                 positions = self.exchange.fetchPositions()
                 for position in positions:
                     if position.get('symbol') == symbol:
-                        return True if position.get('entryPrice') is not None else False
+                        return position.get('side')
 
         return False
 
-    def run(self, symbol_list: str):
+    def giveup_order(self, symbol: str, action: str):
+        if self.target != "SPOT":
+            margin = self.get_margin(symbol)
+            if not self.risk_control(margin):
+                return True
+
+        if self.test_only:
+            logging.info("Test only. No order made.")
+            return True
+
+        if action == "sell" and self.target != "FUTURE":
+            logging.info("Sell order only for future")
+            return True
+
+        side = self.check_duplicate_and_giveup(symbol)
+        if side and side.lower() == action:
+            logging.info(f"{symbol} position already exists. No order made.")
+            return True
+
+        return False
+
+    def run(self, symbol_list: str, action: str):
 
         logging.info("Start making order.")
         orders_list = []
@@ -314,37 +411,38 @@ class BinanceClient():
 
         for symbol in symbol_list:
 
-            if self.target != "SPOT":
-                margin = self.get_margin(symbol)
-                if not self.risk_control(margin):
-                    continue
-
-            if self.test_only:
-                logging.info("Test only. No order made.")
+            if self.giveup_order(symbol, action):
                 continue
 
-            if self.check_duplicate_and_giveup(symbol):
-                logging.info(f"{symbol} position already exists. No order made.")
-                continue
-
-            if self.order_type == "Limit":
-                open_order = self.create_limit_buy(symbol)
-            elif self.order_type == "Market":
-                open_order = self.create_market_buy(symbol)
-
+            open_order = None
             tp_order = None
             sl_order = None
-            if self.sl != 0 and self.tp != 0:
-                tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
+
+            if action == "buy":
+                if self.order_type == "Limit":
+                    open_order = self.create_limit_buy(symbol)
+                elif self.order_type == "Market":
+                    open_order = self.create_market_buy(symbol)
+            elif action == "sell":
+                if self.order_type == "Limit":
+                    open_order = self.create_limit_sell(symbol)
+                elif self.order_type == "Market":
+                    open_order = self.create_market_sell(symbol)
+
+            if open_order and self.sl != 0 and self.tp != 0:
+
+                if action == "buy":
+                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
+                elif action == "sell":
+                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order)
+
                 if sell_order is not None:
                     result = self.clean_up(open_order, sell_order, msg="oco failed")
                     open_order = None
                     result_list.append(result)
 
-            # orders_list.append((open_order, tp_order, sl_order))
-
             if open_order:
-                orders_list.append("buy order placed.")
+                orders_list.append("order placed.")
             if tp_order:
                 orders_list.append("take profit order placed.")
             if sl_order:

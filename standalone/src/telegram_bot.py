@@ -145,14 +145,10 @@ async def message_handle(log, event):
         log.info = msg
         return
 
-    img_path = None
-    # if config["other_setting"]["use_image"]:
-    #     img_path = await telegram_client.download_media(event.photo, 'download_photos')
-
     if config["other_setting"]["pro"]:
         symbol_list, action = parse_pro(event.text)
     else:
-        symbol_list, action = ExchangeClient(config).parse(event.text, img_path)
+        symbol_list, action = ExchangeClient(config).parse(event.text, None)
     log.parse = True
 
     if symbol_list:
@@ -163,10 +159,34 @@ async def message_handle(log, event):
     if not symbol_list or action is None:
         return
 
-    if action != "buy":
+    if action is None:
         return
 
-    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list)
+    if action == "sell" and config["order_setting"]["make_short"] is False:
+        return
+
+    symbol = symbol_list[0]
+    if config["listing_setting"]["whitelist_activate"]:
+        if symbol not in config["listing_setting"]["whitelist"]:
+            msg = f"{symbol} not in whitelist. Give up."
+            logging.info(msg)
+            log.info = log.info
+            return
+        else:
+            msg = f"{symbol} in whitelist"
+            logging.info(msg)
+
+    if config["listing_setting"]["blacklist_activate"]:
+        if symbol in config["listing_setting"]["blacklist"]:
+            msg = f"{symbol} in blacklist. Guve up."
+            logging.info(msg)
+            log.info = log.info
+            return
+        else:
+            msg = f"{symbol} not in blacklist"
+            logging.info(msg)
+
+    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list, action)
     log.margin_level = margin_level
     log.order = order_list
     log.result = result_list

@@ -20,6 +20,8 @@ def parse_pro(message: str):
                 symbol_list = [i.replace("/USDT", "-PERP") for i in symbol_list]
             else:
                 symbol_list = [i.replace("/USDT", "/USD") for i in symbol_list]
+            symbol_list[0] = symbol_list[0].replace("1000SHIB", "SHIB")
+
     except Exception:
         logging.info("Not encoded message.")
     logging.info(f"symbol_list: {symbol_list}, action: {action}")
@@ -67,6 +69,7 @@ def parse_symbol_filter(message: str):
                 symbol_list.append(token)
                 logging.info(f"Filter parsing: {symbol_list}")
                 return symbol_list
+        return symbol_list
     except Exception:
         logging.error("Failed")
         logging.exception("")
@@ -89,12 +92,11 @@ def parse_symbol(message: str, img_path: str):
 
 def parse_action(message: str):
     action = None
-    substring_list = config["keywords"]["long"]
-    if any(map(message.split().__contains__, substring_list)):
+    if any(map(message.split().__contains__, config["keywords"]["long"])):
         action = "buy"
-    substring_list = config["keywords"]["short"]
-    if any(map(message.split().__contains__, substring_list)):
+    elif any(map(message.split().__contains__, config["keywords"]["short"])):
         action = "sell"
+
     logging.info(f"Parse action: {action}")
     return action
 
@@ -133,5 +135,9 @@ def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
     elif config["telegram_setting"]["signal"] == "Perpetual":
         symbol_list = re.findall('#[^\s]+', message)
         symbol_list = [i.replace('#', '') for i in symbol_list]
-        action = "buy" if "看漲" in message else None
+        action = None
+        if "看漲" in message:
+            action = "buy"
+        elif "看跌" in message:
+            action = "sell"
     return symbol_list, action
