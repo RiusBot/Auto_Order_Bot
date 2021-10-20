@@ -381,10 +381,12 @@ class BinanceClient():
                     if position.get('symbol') == symbol:
                         side = position.get('side')
                         logging.info(f"{symbol} has {side} position.")
-                        if side.lower() == "long":
+                        if side == "long":
                             return "buy"
-                        elif side.lower() == "short":
+                        elif side == "short":
                             return "sell"
+                        else:
+                            return side
 
             logging.info(f"{symbol} no duplicate positions.")
         return False
