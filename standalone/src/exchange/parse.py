@@ -131,7 +131,7 @@ def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
         message = message.lower()
         message = parse_symbol_substitute(message)
         symbol_list = parse_symbol(message, img_path)
-        action = parse_action(message) if symbol_list else None
+        action = parse_action(message)
     elif config["telegram_setting"]["signal"] == "Perpetual":
         symbol_list = re.findall('#[^\s]+', message)
         symbol_list = [i.replace('#', '') for i in symbol_list]

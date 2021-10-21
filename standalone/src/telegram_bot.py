@@ -224,7 +224,7 @@ def telegram_start(config: dict, window_):
         window = window_
         exchange_client = ExchangeClient(config)
         telegram_client = TelegramClient(
-            'anon',
+            config["telegram_setting"]["session"],
             config["telegram_setting"]["telegram_api_id"],
             config["telegram_setting"]["telegram_api_hash"],
         )
@@ -240,6 +240,7 @@ def telegram_start(config: dict, window_):
         )
 
         if test_channel is not None:
+            logging.info("Listen on test channel")
             telegram_client.add_event_handler(
                 signal_handler,
                 events.NewMessage(from_users=test_channel, forwards=False)

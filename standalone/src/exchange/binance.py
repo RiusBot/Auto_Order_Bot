@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
 
-from .parse import parse
+from src.exchange.parse import parse
 from src.config import config
 
 

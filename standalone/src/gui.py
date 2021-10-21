@@ -174,6 +174,7 @@ def other_setting_layout():
             sg.Column(
                 [
                     [sg.Checkbox('Rose For Bot', default=False, key="pro")],
+                    [sg.Checkbox('Auto sl tp', default=False, key="auto_sl_tp")],
                     [sg.Text("maximum latency"), sg.In(size=15, key="maximum_latency")],
                 ],
                 element_justification="left"
@@ -461,6 +462,9 @@ def run_gui():
                 config["listing_setting"]["whitelist"] = whitelist
                 config["listing_setting"]["blacklist"] = blacklist
                 save_lists(config)
+                config["listing_setting"]["whitelist_activate"] = window["whitelist_activate"].get()
+                config["listing_setting"]["blacklist_activate"] = window["blacklist_activate"].get()
+                sg.popup("Listing Saved !!")
             except Exception:
                 logging.exception("")
                 sg.Popup(f"Save listing failed !!\n\n{traceback.format_exc()}")

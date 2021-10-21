@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
 
-from .parse import parse
+from src.exchange.parse import parse
 
 
 class FTXClient():
@@ -306,15 +306,24 @@ class FTXClient():
                 logging.info("check future duplicate")
                 positions = self.exchange.fetchPositions()
                 for position in positions:
-                    if position.get('future') == symbol:
+                    if "symbol" in position:
+                        position = position.get("info", {})
+
+                    if position.get('future') == symbol and position.get('entryPrice') and position.get('side'):
                         side = position['side']
                         logging.info(f"{symbol} has {side} position.")
-                        return side if position.get('entryPrice') else False
+                        return side
 
             logging.info(f"{symbol} No duplicate positions")
         return False
 
     def giveup_order(self, symbol: str, action: str):
+
+        side = self.check_duplicate_and_giveup(symbol)
+        if side and side == action:
+            logging.info(f"{symbol} position already exists. No order made.")
+            return True
+
         if self.target != "SPOT":
             margin = self.get_margin(symbol)
             if not self.risk_control(margin):
@@ -326,11 +335,6 @@ class FTXClient():
 
         if action == "sell" and self.target != "FUTURE":
             logging.info("Sell order only for future")
-            return True
-
-        side = self.check_duplicate_and_giveup(symbol)
-        if side and side == action:
-            logging.info(f"{symbol} position already exists. No order made.")
             return True
 
         return False
@@ -345,6 +349,7 @@ class FTXClient():
         for symbol in symbol_list:
 
             if self.giveup_order(symbol, action):
+                logging.info("give up order.")
                 continue
 
             open_order = None
