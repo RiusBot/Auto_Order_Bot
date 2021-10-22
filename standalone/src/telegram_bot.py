@@ -145,8 +145,10 @@ async def message_handle(log, event):
         log.info = msg
         return
 
+    tp = None
+    sl = None
     if config["other_setting"]["pro"]:
-        symbol_list, action = parse_pro(event.text)
+        symbol_list, action, tp, sl = parse_pro(event.text)
     else:
         symbol_list, action = ExchangeClient(config).parse(event.text, None)
     log.parse = True
@@ -186,7 +188,7 @@ async def message_handle(log, event):
             msg = f"{symbol} not in blacklist"
             logging.info(msg)
 
-    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list, action)
+    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list, action, tp, sl)
     log.margin_level = margin_level
     log.order = order_list
     log.result = result_list

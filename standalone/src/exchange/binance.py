@@ -157,11 +157,16 @@ class BinanceClient():
         """)
         return order
 
-    def create_oco_order(self, symbol: str, open_order):
+    def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
         amount = float(open_order["amount"])
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
+
+        if config["other_setting"]["auto_sl_tp"] and take_profit is not None:
+            tp_price = take_profit
+        if config["other_setting"]["auto_sl_tp"] and stop_loss is not None:
+            sl_price = stop_loss
 
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
         tp_order = None
@@ -181,7 +186,7 @@ class BinanceClient():
                     }
                 )
             except Exception as e:
-                logging.info(str(e))
+                logging.error(str(e))
                 if "-2021" in e.args[0]:
                     sell_order = self.exchange.createMarketSellOrder(symbol, amount)
                     logging.info("Sell immediately.")
@@ -200,7 +205,7 @@ class BinanceClient():
                     }
                 )
             except Exception as e:
-                logging.info(str(e))
+                logging.error(str(e))
                 if "-2021" in e.args[0]:
                     sell_order = self.exchange.createMarketSellOrder(symbol, amount)
                     logging.info("Sell immediately.")
@@ -247,11 +252,16 @@ class BinanceClient():
 
         return tp_order, sl_order, None
 
-    def create_oco_short_order(self, symbol: str, open_order):
+    def create_oco_short_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
         amount = float(open_order["amount"])
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
         tp_price = price * (1 - self.tp)
         sl_price = price * (1 + self.sl)
+
+        if config["other_setting"]["auto_sl_tp"] and take_profit is not None:
+            tp_price = take_profit
+        if config["other_setting"]["auto_sl_tp"] and stop_loss is not None:
+            sl_price = stop_loss
 
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
         tp_order = None
@@ -412,7 +422,7 @@ class BinanceClient():
 
         return False
 
-    def run(self, symbol_list: str, action: str):
+    def run(self, symbol_list: str, action: str, take_profit: float, stop_loss: float):
 
         logging.info("Start making order.")
         orders_list = []
@@ -442,9 +452,9 @@ class BinanceClient():
             if open_order and self.sl != 0 and self.tp != 0:
 
                 if action == "buy":
-                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
+                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
                 elif action == "sell":
-                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order)
+                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
 
                 if sell_order is not None:
                     result = self.clean_up(open_order, sell_order, msg="oco failed")

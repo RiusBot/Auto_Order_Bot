@@ -471,10 +471,11 @@ def run_gui():
         if event == "parse":
             test_input = window["test_input"].get()
             if config["other_setting"]["pro"]:
-                symbol_list, action = parse_pro(test_input)
+                symbol_list, action, tp, sl = parse_pro(test_input)
+                test_output = f"symbol_list: {symbol_list}\naction: {action}\nstop loss: {sl}\ntake profit: {tp}"
             else:
                 symbol_list, action = ExchangeClient(config).parse(test_input, None)
-            test_output = f"symbol_list: {symbol_list}\naction: {action}"
+                test_output = f"symbol_list: {symbol_list}\naction: {action}"
             window["test_output"].update("")
             window["test_output"].print(test_output)
         if event == "generate":
