@@ -85,6 +85,9 @@ def load_config() -> dict:
     if "make_short" not in config["order_setting"]:
         config["order_setting"]["make_short"] = False
 
+    if "auto_sl_tp" not in config["order_setting"]:
+        config["other_setting"]["auto_sl_tp"] = False
+
     config = type_casting(config)
     config["path"] = path
     config["config_path"] = path

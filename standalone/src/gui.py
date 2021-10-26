@@ -20,7 +20,8 @@ def telegram_setting_layout():
             [
                 sg.Radio("Perpetual Data", "telegram signal", key="P_signal"),
                 sg.Radio("Rose Premium", "telegram signal", key="R_signal"),
-                # sg.Radio("Notification", "telegram signal", key="N_signal")
+                sg.Radio("Benson Sentiment", "telegram signal", key="S_signal"),
+                sg.Radio("Justin", "telegram signal", key="J_signal")
             ],
 
             [
@@ -99,7 +100,7 @@ def order_setting_layout():
                 sg.VerticalSeparator(pad=None),
                 sg.Column(
                     [
-                        [sg.Text("Trigger keywords for Rose chnnel")],
+                        [sg.Text("Trigger keywords for Rose channel")],
                         [sg.Text("long"), sg.In(size=25, key="long")],
                         [sg.Text("short"), sg.In(size=25, key="short")],
                     ],
@@ -215,6 +216,7 @@ def listing_layout():
         [
             sg.Column([
                 [sg.Text("All markets")],
+                [sg.In(key="search_target", size=(15, 5)), sg.Button("search", key="search")],
                 [sg.Listbox(values=list(exchange.markets.keys()), size=(40, 20), key="markets")],
                 [sg.Button("whitelist", key="white_add"), sg.Button("blacklist", key="black_add")]
             ]),
@@ -246,6 +248,10 @@ def config_setup(window):
                     window["R_signal"].update(value=True)
                 elif value == "Perpetual":
                     window["P_signal"].update(value=True)
+                elif value == "Sentiment":
+                    window["S_signal"].update(value=True)
+                elif value == "Justin":
+                    window["J_signal"].update(value=True)
             else:
                 try:
                     window[key].update(value=value)
@@ -315,6 +321,10 @@ def update_config(window):
                     config["telegram_setting"]["signal"] = "Rose"
                 elif window["P_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Perpetual"
+                elif window["S_signal"].get() is True:
+                    config["telegram_setting"]["signal"] = "Sentiment"
+                elif window["J_signal"].get() is True:
+                    config["telegram_setting"]["signal"] = "Justin"
             elif key == "signal_channel":
                 if window["P_signal"].get() is True:
                     config["telegram_setting"][key] = window[key].get()
@@ -422,6 +432,15 @@ def run_gui():
 
     while True:
         event, values = window.read()
+
+        if event == "search":
+            exchange = getattr(ccxt, config["exchange_setting"]["exchange"])()
+            exchange.loadMarkets()
+            markets = list(exchange.markets.keys())
+            token = window["search_target"].get().upper()
+            if token:
+                markets = [i for i in markets if token in i.split('/')[0]]
+            window["markets"].update(markets)
 
         if event == "white_add":
             market = window["markets"].get()[0]

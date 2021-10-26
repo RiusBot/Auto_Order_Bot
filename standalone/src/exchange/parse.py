@@ -130,6 +130,35 @@ def parse_symbol_substitute(message: str):
     return new_str
 
 
+def parse_justin(message: str):
+    action = None
+    symbol_list = []
+
+    if "今天" in message and "進" in message:
+        action = "buy"
+        symbol_list = parse_justin_symbol(message)
+    elif "今天" in message and "出" in message:
+        action = "sell"
+        symbol_list = parse_justin_symbol(message)
+
+    return symbol_list, action
+
+
+def parse_justin_symbol(message: str):
+    message = re.compile('[^a-zA-Z0-9\n]').sub('', message)
+    symbol_list = []
+    lines = [i.strip() for i in message.split('\n') if i.strip()]
+    for line in lines:
+        symbol = ""
+        for c in line:
+            if c.isalpha():
+                symbol += c
+            else:
+                break
+        symbol_list.append(symbol)
+    return symbol_list
+
+
 def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
     if config["telegram_setting"]["signal"] == "Rose":
         message = message.lower()
@@ -144,4 +173,14 @@ def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
             action = "buy"
         elif "看跌" in message:
             action = "sell"
+    elif config["telegram_setting"]["signal"] == "Sentiment":
+        message = re.compile('[^a-zA-Z\n ]').sub('', message)
+        symbol_list = message.split(' ')[:1]
+        action = None
+        if "Overheated" in message or "FOMO" in message:
+            action = "sell"
+        elif "Fear" in message:
+            action = "buy"
+    elif config["telegram_setting"]["signal"] == "Justin":
+        symbol_list, action = parse_justin(message)
     return symbol_list, action

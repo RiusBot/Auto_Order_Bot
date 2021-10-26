@@ -38,7 +38,7 @@ compile-linux:
 	cp -r src build-linux
 	cp requirements.txt build-linux/src
 	cp setup.py build-linux/src
-	docker run -v "$(shell pwd)/build-linux/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-linux "python -m pip install --upgrade pip && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
+	docker run -v "$(shell pwd)/build-linux/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-linux "python -m pip install --upgrade pip setuptools && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
 
 
 ###########################
