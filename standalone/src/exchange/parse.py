@@ -16,8 +16,8 @@ def parse_pro(message: str):
         pro_message = base64.b64decode(message.encode("ascii")).decode("ascii")
         pro_message = json.loads(pro_message)
         symbol_list = pro_message["symbol_list"]
-        tp = pro_message["tp"]
-        sl = pro_message["sl"]
+        tp = pro_message.get("tp")
+        sl = pro_message.get("sl")
         action = pro_message["action"]
         if config["exchange_setting"]["exchange"] == "ftx":
             if config["order_setting"]["target"] == "FUTURE":
@@ -27,6 +27,7 @@ def parse_pro(message: str):
             symbol_list[0] = symbol_list[0].replace("1000SHIB", "SHIB")
 
     except Exception:
+        logging.exception("")
         logging.info("Not encoded message.")
     logging.info(f"symbol_list: {symbol_list}, action: {action}")
     return symbol_list, action, tp, sl

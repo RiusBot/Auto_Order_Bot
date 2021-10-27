@@ -326,7 +326,7 @@ def update_config(window):
                 elif window["J_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Justin"
             elif key == "signal_channel":
-                if window["P_signal"].get() is True:
+                if window["R_signal"].get() is False:
                     config["telegram_setting"][key] = window[key].get()
             else:
                 try:
