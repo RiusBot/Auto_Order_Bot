@@ -70,6 +70,17 @@ class FTXClient():
         logging.info(f"Action: {action}")
         return symbol_list, action
 
+    def get_volume(self, symbol: str) -> float:
+        try:
+            self.exchange.loadMarkets(True)
+            symbol = symbol.replace("USDT", "USD")
+            market = self.exchange.markets[symbol]
+            info = market["info"]
+            return float(info["volumeUsd24h"])
+        except Exception:
+            logging.excpetion("")
+            logging.error("get volume failed")
+
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
         symbol = symbol.replace("USDT", "USD")
@@ -91,35 +102,37 @@ class FTXClient():
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createMarketBuyOrder(symbol, amount)
         logging.info(f"""
             Market Buy {symbol}
-            Open price : {order['average']}
+            Open price : {price}
             Amount : {amount}
         """)
+        order = self.exchange.createMarketBuyOrder(symbol, amount)
+        logging.info(f"Open average price : {order['average']}")
         return order
 
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createLimitBuyOrder(symbol, amount, price)
-        order["average"] = order.get("price", price)
         logging.info(f"""
             Limit Buy {symbol}
-            Open price : {order['average']}
+            Open price : {price}
             Amount : {amount}
         """)
+        order = self.exchange.createLimitBuyOrder(symbol, amount, price)
+        order["average"] = order.get("price", price)
         return order
 
     def create_market_sell(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createMarketSellOrder(symbol, amount)
         logging.info(f"""
             Market Sell {symbol}
-            Open price : {order['average']}
+            Open price : {price}
             Amount : {amount}
         """)
+        order = self.exchange.createMarketSellOrder(symbol, amount)
+        logging.info(f"Sell average price : {order['average']}")
         return order
 
     def create_limit_sell(self, symbol: str):
@@ -151,15 +164,19 @@ class FTXClient():
         sl_order = None
 
         try:
+            params = {
+                "market": symbol,
+                "side": "sell",
+                "triggerPrice": tp_price,
+                "size": amount,
+                "type": "takeProfit",
+                "reduceOnly": True
+            }
+            if config["order_setting"]["tp_limit"]:
+                params["orderPrice"] = tp_price
+
             tp_order = self.exchange.private_post_conditional_orders(
-                params={
-                    "market": symbol,
-                    "side": "sell",
-                    "triggerPrice": tp_price,
-                    "size": amount,
-                    "type": "takeProfit",
-                    "reduceOnly": True
-                }
+                params=params
             )
         except Exception as e:
             logging.error(str(e))
@@ -169,15 +186,18 @@ class FTXClient():
                 return None, None, sell_order
 
         try:
+            params = {
+                "market": symbol,
+                "side": "sell",
+                "triggerPrice": sl_price,
+                "size": amount,
+                "type": "stop",
+                "reduceOnly": True
+            }
+            if config["order_setting"]["sl_limit"]:
+                params["orderPrice"] = sl_price
             sl_order = self.exchange.private_post_conditional_orders(
-                params={
-                    "market": symbol,
-                    "side": "sell",
-                    "triggerPrice": sl_price,
-                    "size": amount,
-                    "type": "stop",
-                    "reduceOnly": True
-                }
+                params=params
             )
         except Exception as e:
             logging.error(str(e))
@@ -349,6 +369,12 @@ class FTXClient():
         if action == "sell" and self.target != "FUTURE":
             logging.info("Sell order only for future")
             return True
+
+        if config["order_setting"]["minimum_volume"]:
+            volume = self.get_volume(symbol)
+            if volume is not None:
+                if config["order_setting"]["minimum_volume"] > volume:
+                    return True
 
         return False
 

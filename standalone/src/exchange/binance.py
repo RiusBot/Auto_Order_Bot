@@ -69,6 +69,13 @@ class BinanceClient():
         logging.debug(f"Action: {action}")
         return symbol_list, action
 
+    def get_volume(self, symbol: str) -> float:
+        try:
+            return float(self.exchange.fapiPublic_get_ticker_24hr({'symbol': symbol})["volume"])
+        except Exception:
+            logging.excpetion("")
+            logging.error("get volume failed")
+
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
         return float(self.exchange.fetchTicker(symbol)['info']["lastPrice"])
@@ -114,47 +121,49 @@ class BinanceClient():
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createMarketBuyOrder(symbol, amount)
         logging.info(f"""
             Market Buy {symbol}
-            Open price : {order['average']}
+            price : {price}
             Amount : {amount}
         """)
+        order = self.exchange.createMarketBuyOrder(symbol, amount)
+        logging.info(f"Open average price : {order['average']}")
         return order
 
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createLimitBuyOrder(symbol, amount, price)
-        order["average"] = order.get("price", price)
         logging.info(f"""
             Limit Buy {symbol}
-            Open price : {order['average']}
+            Open price : {price}
             Amount : {amount}
         """)
+        order = self.exchange.createLimitBuyOrder(symbol, amount, price)
+        order["average"] = order.get("price", price)
         return order
 
     def create_market_sell(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createMarketSellOrder(symbol, amount)
         logging.info(f"""
             Market Sell {symbol}
-            Open price : {order['average']}
             Amount : {amount}
+            Price: {price}
         """)
+        order = self.exchange.createMarketSellOrder(symbol, amount)
+        logging.info(f"Sell average price : {order['average']}")
         return order
 
     def create_limit_sell(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createLimitSellOrder(symbol, amount, price)
-        order["average"] = order.get("price", price)
         logging.info(f"""
             Limit Sell {symbol}
-            Open price : {order['average']}
+            Open price : {price}
             Amount : {amount}
         """)
+        order = self.exchange.createLimitSellOrder(symbol, amount, price)
+        order["average"] = order.get("price", price)
         return order
 
     def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
@@ -173,10 +182,13 @@ class BinanceClient():
         sl_order = None
 
         if self.target == "FUTURE":
+            tp_order_type = "TAKE_PROFIT" if config["order_setting"]["tp_limit"] else "TAKE_PROFIT_MARKET"
+            sl_order_type = "STOP" if config["order_setting"]["sl_limit"] else "STOP_MARKET"
+
             try:
                 tp_order = self.exchange.create_order(
                     symbol,
-                    type="TAKE_PROFIT_MARKET",
+                    type=tp_order_type,
                     side="SELL",
                     amount=amount,
                     params={
@@ -195,7 +207,7 @@ class BinanceClient():
             try:
                 sl_order = self.exchange.create_order(
                     symbol,
-                    type="STOP_MARKET",
+                    type=sl_order_type,
                     side="SELL",
                     amount=amount,
                     params={
@@ -212,6 +224,9 @@ class BinanceClient():
                     return None, None, sell_order
 
         elif self.target == "SPOT":
+            tp_order_type = "TAKE_PROFIT_LIMIT" if config["order_setting"]["tp_limit"] else "TAKE_PROFIT"
+            sl_order_type = "STOP_LOSS_LIMIT" if config["order_setting"]["sl_limit"] else "STOP_LOSS"
+
             try:
                 oco_order = self.exchange.private_post_order_oco({
                     "symbol": symbol.replace("/", ""),
@@ -419,6 +434,12 @@ class BinanceClient():
         if side and side.lower() == action:
             logging.info(f"{symbol} position already exists. No order made.")
             return True
+
+        if config["order_setting"]["minimum_volume"]:
+            volume = self.get_volume(symbol)
+            if volume is not None:
+                if config["order_setting"]["minimum_volume"] > volume:
+                    return True
 
         return False
 

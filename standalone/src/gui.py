@@ -86,6 +86,7 @@ def order_setting_layout():
                         [sg.Text("Quantity"), sg.In(size=15, key="quantity")],
                         [sg.Text("Leverage"), sg.In(size=15, key="leverage")],
                         [sg.Text("minimum margin\nlevel/ratio"), sg.In(size=15, key="margin_level_ratio")],
+                        [sg.Text("perpetual minimum 24 volume"), sg.In(size=15, key="minimum_volume")],
                     ],
                     element_justification="right"
                 ),
@@ -93,9 +94,11 @@ def order_setting_layout():
                     [
                         [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("")],
                         [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("")],
-                        [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)]
+                        [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)],
+                        [sg.Checkbox('sl limit', default=True, key="sl_limit")],
+                        [sg.Checkbox('tp limit', default=True, key="tp_limit")],
                     ],
-                    element_justification="right"
+                    element_justification="left"
                 ),
                 sg.VerticalSeparator(pad=None),
                 sg.Column(
@@ -282,9 +285,10 @@ def config_setup(window):
         # Other setting
         for key, value in config["other_setting"].items():
             try:
+                print(key, value)
                 window[key].update(value=value)
             except Exception:
-                pass
+                logging.exception("")
 
         # listing setting
         for key, value in config["listing_setting"].items():
@@ -365,7 +369,7 @@ def update_config(window):
             try:
                 config["other_setting"][key] = window[key].get()
             except KeyError:
-                pass
+                logging.exception("")
 
         # listing setting
         for key in config["listing_setting"]:

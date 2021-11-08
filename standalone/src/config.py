@@ -85,8 +85,17 @@ def load_config() -> dict:
     if "make_short" not in config["order_setting"]:
         config["order_setting"]["make_short"] = False
 
-    if "auto_sl_tp" not in config["order_setting"]:
+    if "auto_sl_tp" not in config["other_setting"]:
         config["other_setting"]["auto_sl_tp"] = False
+
+    if "sl_limit" not in config["order_setting"]:
+        config["order_setting"]["sl_limit"] = False
+
+    if "tp_limit" not in config["order_setting"]:
+        config["order_setting"]["tp_limit"] = False
+
+    if "minimum_volume" not in config["order_setting"]:
+        config["order_setting"]["minimum_volume"] = 0
 
     config = type_casting(config)
     config["path"] = path
@@ -130,6 +139,7 @@ def save_lists(config: dict):
 def type_casting(config: dict):
     for key, value in config["order_setting"].items():
         if isinstance(value, str):
+            config["order_setting"][key] = value.strip()
             try:
                 value = float(value)
                 config["order_setting"][key] = value

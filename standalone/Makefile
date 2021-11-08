@@ -18,6 +18,8 @@ doc:
 	python -m pydoc -b
 
 
+compile-all: compile compile-win compile-linux
+
 compile:
 	pyinstaller --noconsole -F src/gui.py
 
