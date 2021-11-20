@@ -120,9 +120,9 @@ class BinanceClient():
         return margin
 
     # trace back 12 hours
-    def get_ohlve(self, symbol):
+    def get_ohlcv(self, symbol):
         since = self.exchange.milliseconds() - 12 * 60 * 60 * 1000
-        return self.exchange(symbol, '1h', since)
+        return self.exchange.fetch_ohlcv(symbol, '1h', since)
 
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
@@ -139,13 +139,13 @@ class BinanceClient():
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
         if self.fibonacci > 0 and self.fibonacci < 1:
-            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlve(symbol))
+            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlcv(symbol))
+            logging.info(info)
 
             if fibo_price < price:
                 price = fibo_price
-                logging.info(info)
             else:
-                logging.info("Current price is lower than fibonacci price")
+                logging.info(f"""Current price ${price} is lower than fibonacci price ${fibo_price}. Use limit price""")
 
         amount = self.quantity / price * self.leverage
         logging.info(f"""
@@ -184,15 +184,6 @@ class BinanceClient():
     def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
         amount = float(open_order["amount"])
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
-
-        if self.fibonacci != 1.0:
-            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlve(symbol))
-
-            if fibo_price < price:
-                price = fibo_price
-                logging.info(info)
-            else:
-                logging.info("Current price is lower than fibonacci price")
 
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
