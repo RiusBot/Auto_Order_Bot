@@ -138,6 +138,7 @@ def new_order_setting_layout():
             [
                 [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("%")],
                 [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("%")],
+                [sg.Text("Fibonacci"), sg.In(size=15, key="fibonacci"), sg.Text("")],
             ],
             element_justification="right"
         ),

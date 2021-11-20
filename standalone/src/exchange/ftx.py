@@ -5,7 +5,7 @@ import json
 import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
-
+from src.utils.ohlcv_utils import get_fibonacci
 from src.exchange.parse import parse
 from src.config import config
 
@@ -25,6 +25,7 @@ class FTXClient():
         self.margin = config["order_setting"]["margin_level_ratio"]
         self.subaccount = config["exchange_setting"]["subaccount"]
         self.no_duplicate = config["order_setting"]["no_duplicate"]
+        self.fibonacci = config["order_setting"]["fibonacci"]
 
         options = {
             "defaultType": self.target.lower(),
@@ -99,6 +100,11 @@ class FTXClient():
         margin = self.exchange.private_get_account()["result"]["marginFraction"]
         return 999 if margin is None else float(margin)
 
+    # trace back 12 hours
+    def get_ohlve(self, symbol):
+        since = self.exchange.milliseconds() - 12 * 60 * 60 * 1000
+        return self.exchange(symbol, '1h', since)
+
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
@@ -113,6 +119,15 @@ class FTXClient():
 
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
+        if self.fibonacci > 0 and self.fibonacci < 1:
+            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlve(symbol))
+
+            if fibo_price < price:
+                price = fibo_price
+                logging.info(info)
+            else:
+                logging.info("Current price is lower than fibonacci price")
+
         amount = self.quantity / price * self.leverage
         logging.info(f"""
             Limit Buy {symbol}
@@ -151,6 +166,16 @@ class FTXClient():
         open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+
+        if self.fibonacci != 1.0:
+            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlve(symbol))
+
+            if fibo_price < price:
+                price = fibo_price
+                logging.info(info)
+            else:
+                logging.info("Current price is lower than fibonacci price")
+
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
 
