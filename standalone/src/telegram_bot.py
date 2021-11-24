@@ -1,7 +1,6 @@
 import re
 import os
 import sys
-import time
 import json
 import asyncio
 import pandas as pd
@@ -9,8 +8,9 @@ import logging
 import traceback
 from telethon import TelegramClient, events, sync
 from src.exchange import ExchangeClient
-from src.exchange.parse import parse_pro
 from src.config import config
+from typing import List, Tuple
+import PySimpleGUI as sg
 
 
 exchange_client = None
@@ -75,10 +75,7 @@ class LogHandler():
         df.to_csv(path, index=False)
 
     def __str__(self):
-        tmp = self.to_log().copy()
-        if isinstance(tmp["error"], str):
-            tmp["error"] = tmp["error"][:1024]
-        return json.dumps(tmp, indent=4)
+        return json.dumps(self.to_log(), indent=4)
 
     async def notify(self, message):
         await message.forward_to(notify_channel)
@@ -136,59 +133,20 @@ async def message_handle(log, event):
     logging.info("=============================================")
     logging.info(event.text)
     logging.info("=============================================")
+
     print(exchange_client)
-
-    latency = event.date.timestamp() - time.time()
-    if latency > float(config["other_setting"]["maximum_latency"]):
-        msg = f"latency {latency} > {config['other_setting']['maximum_latency']} too high !!  Rejected."
-        logging.info(msg)
-        log.info = msg
-        return
-
-    tp = None
-    sl = None
-    if config["other_setting"]["pro"]:
-        symbol_list, action, tp, sl = parse_pro(event.text)
-    else:
-        symbol_list, action = ExchangeClient(config).parse(event.text, None)
-    log.parse = True
-
-    if symbol_list:
-        log.symbol = symbol_list
-    if action:
-        log.action = action
-
+    symbol_list, action = ExchangeClient(config).parse(event.text)
     if not symbol_list or action is None:
         return
+    else:
+        log.parse = True
+        log.symbol = symbol_list
+        log.action = action
 
-    if action is None:
+    if action != "buy":
         return
 
-    if action == "sell" and config["order_setting"]["make_short"] is False:
-        return
-
-    symbol = symbol_list[0]
-    if config["listing_setting"]["whitelist_activate"]:
-        if symbol not in config["listing_setting"]["whitelist"]:
-            msg = f"{symbol} not in whitelist. Give up."
-            logging.info(msg)
-            log.info = log.info
-            return
-        else:
-            msg = f"{symbol} in whitelist"
-            logging.info(msg)
-
-    if config["listing_setting"]["blacklist_activate"]:
-        if symbol in config["listing_setting"]["blacklist"]:
-            msg = f"{symbol} in blacklist. Guve up."
-            logging.info(msg)
-            log.info = log.info
-            return
-        else:
-            msg = f"{symbol} not in blacklist"
-            logging.info(msg)
-
-    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list, action, tp, sl)
+    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list)
     log.margin_level = margin_level
     log.order = order_list
     log.result = result_list
@@ -226,7 +184,7 @@ def telegram_start(config: dict, window_):
         window = window_
         exchange_client = ExchangeClient(config)
         telegram_client = TelegramClient(
-            config["telegram_setting"]["session"],
+            'anon',
             config["telegram_setting"]["telegram_api_id"],
             config["telegram_setting"]["telegram_api_hash"],
         )
@@ -242,7 +200,6 @@ def telegram_start(config: dict, window_):
         )
 
         if test_channel is not None:
-            logging.info("Listen on test channel")
             telegram_client.add_event_handler(
                 signal_handler,
                 events.NewMessage(from_users=test_channel, forwards=False)

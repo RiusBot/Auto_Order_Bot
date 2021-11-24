@@ -2,12 +2,6 @@ exchange_setting:
   api_key: 
   api_secret: 
   exchange: binance
-  subaccount: ''
-keywords:
-  long:
-  - buy
-  - long
-  short: []
 log_setting:
   bot_log_path: rose_bot_log.csv
   log_path: log.txt
@@ -22,15 +16,11 @@ order_setting:
   take_profit: '0.0'
   target: FUTURE
   test_only: true
-  no_duplicate: true
-other_setting:
-  maximum_latency: '10'
-  pro: false
 path: 
 telegram_setting:
   notify_channel: Bot Notify
   signal: Rose
-  signal_channel: 
+  signal_channel: 🌹 Rose Premium Signal 2021
   telegram_api_hash: 
   telegram_api_id: 
   test_channel: test
