@@ -5,7 +5,7 @@ import json
 import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
-
+from src.utils.ohlcv_utils import get_fibonacci
 from src.exchange.parse import parse
 from src.config import config
 
@@ -25,6 +25,7 @@ class BinanceClient():
         self.margin = float(config["order_setting"]["margin_level_ratio"])
         self.subaccount = config["exchange_setting"]["subaccount"]
         self.no_duplicate = config["order_setting"]["no_duplicate"]
+        self.fibonacci = config["order_setting"]["fibonacci"]
 
         options = {
             "defaultType": self.target.lower(),
@@ -78,6 +79,7 @@ class BinanceClient():
 
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
+        symbol = symbol.replace("/", "")
         return float(self.exchange.fetchTicker(symbol)['info']["lastPrice"])
 
     def get_balance(self):
@@ -118,6 +120,11 @@ class BinanceClient():
         logging.info(f"Margin level/ratio: {margin}")
         return margin
 
+    # trace back 12 hours
+    def get_ohlcv(self, symbol):
+        since = self.exchange.milliseconds() - 12 * 60 * 60 * 1000
+        return self.exchange.fetch_ohlcv(symbol, '1h', since)
+
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
@@ -132,6 +139,15 @@ class BinanceClient():
 
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
+        if self.fibonacci > 0 and self.fibonacci < 1:
+            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlcv(symbol))
+            logging.info(info)
+
+            if fibo_price < price:
+                price = fibo_price
+            else:
+                logging.info(f"""Current price ${price} is lower than fibonacci price ${fibo_price}. Use limit price""")
+
         amount = self.quantity / price * self.leverage
         logging.info(f"""
             Limit Buy {symbol}
@@ -169,6 +185,7 @@ class BinanceClient():
     def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
         amount = float(open_order["amount"])
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
 
@@ -191,6 +208,7 @@ class BinanceClient():
                     type=tp_order_type,
                     side="SELL",
                     amount=amount,
+                    price=tp_price,
                     params={
                         "stopPrice": tp_price,
                         "closePosition": True,
@@ -210,6 +228,7 @@ class BinanceClient():
                     type=sl_order_type,
                     side="SELL",
                     amount=amount,
+                    price=sl_price,
                     params={
                         "stopPrice": sl_price,
                         "closePosition": True,
@@ -398,7 +417,7 @@ class BinanceClient():
                 amount = float(asset.get(token, 0))
                 price = self.get_price(symbol)
                 notional = amount * price
-                return True if notional > 1 else False
+                return "buy" if notional > 10 else False
             elif self.target == "FUTURE":
                 logging.info("check future duplicate")
                 positions = self.exchange.fetchPositions()

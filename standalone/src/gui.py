@@ -98,7 +98,7 @@ def order_setting_layout():
                     [
                         [sg.Text("SL"), sg.In(size=15, key="stop_loss"), sg.Text("")],
                         [sg.Text("TP"), sg.In(size=15, key="take_profit"), sg.Text("")],
-                        # [sg.Text("TS"), sg.In(size=15, key="trailing_stop"), sg.Text("")],
+                        [sg.Text("Fibonacci"), sg.In(size=15, key="fibonacci"), sg.Text("")],
                         [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)],
                         [sg.Checkbox('SL limit', default=True, key="sl_limit"),
                          sg.Checkbox('TP limit', default=True, key="tp_limit")]
