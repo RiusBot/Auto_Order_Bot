@@ -59,7 +59,7 @@ class FTXClient():
 
     def parse(self, message: str, img_path: str) -> Tuple[List[str], str]:
         base = "-PERP" if self.target == "FUTURE" else "/USD"
-        symbol_list, action = parse(message, base, img_path)
+        symbol_list, action, tp, sl = parse(message, base, img_path)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -69,7 +69,7 @@ class FTXClient():
 
         logging.info(f"Symbols: {symbol_list}")
         logging.info(f"Action: {action}")
-        return symbol_list, action
+        return symbol_list, action, tp, sl
 
     def get_volume(self, symbol: str) -> float:
         try:

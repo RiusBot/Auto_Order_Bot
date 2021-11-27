@@ -160,7 +160,44 @@ def parse_justin_symbol(message: str):
     return symbol_list
 
 
+def parse_daily(message: str):
+    action = None
+    if "long" in message.lower():
+        action = "buy"
+    elif "short" in message.lower():
+        action = "sell"
+
+    sl = None
+    tp = None
+    entry = None
+    symbol_list = []
+    lines = [i for i in message.split('\n') if i]
+    for e, line in enumerate(lines):
+        if e == 0:
+            symbol_list = [i.replace("USDT", "").upper() for i in line.split(' ') if i]
+            continue
+
+        key, value = line.split(':')
+        key, value = key.strip().lower(), value.strip().lower()
+
+        if "entry" in key:
+            entry = float(value.split(' ')[0])
+        elif "target" in key:
+            tp = float(value.split(' ')[0])
+        elif "stop loss" in key:
+            sl = float(value.split(' ')[0])
+
+    if sl is None and entry is not None and tp is not None:
+        if action == "buy":
+            sl = entry - (tp - entry)
+        elif action == "sell":
+            sl = entry + (entry - tp)
+
+    return symbol_list, action, tp, sl
+
+
 def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
+    tp, sl = None, None
     if config["telegram_setting"]["signal"] == "Rose":
         message = message.lower()
         message = parse_symbol_substitute(message)
@@ -184,4 +221,6 @@ def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
             action = "buy"
     elif config["telegram_setting"]["signal"] == "Justin":
         symbol_list, action = parse_justin(message)
-    return symbol_list, action
+    elif config["telegram_setting"]["signal"] == "Daily":
+        symbol_list, action, tp, sl = parse_daily(message)
+    return symbol_list, action, tp, sl

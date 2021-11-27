@@ -150,7 +150,7 @@ async def message_handle(log, event):
     if config["other_setting"]["pro"]:
         symbol_list, action, tp, sl = parse_pro(event.text)
     else:
-        symbol_list, action = ExchangeClient(config).parse(event.text, None)
+        symbol_list, action, tp, sl = ExchangeClient(config).parse(event.text, None)
     log.parse = True
 
     if symbol_list:

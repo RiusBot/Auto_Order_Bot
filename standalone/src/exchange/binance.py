@@ -58,7 +58,7 @@ class BinanceClient():
 
     def parse(self, message: str, img_path: str) -> Tuple[List[str], str]:
         base = "/USDT"
-        symbol_list, action = parse(message, base, img_path)
+        symbol_list, action, tp, sl = parse(message, base, img_path)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -68,7 +68,7 @@ class BinanceClient():
 
         logging.debug(f"Symbols: {symbol_list}")
         logging.debug(f"Action: {action}")
-        return symbol_list, action
+        return symbol_list, action, tp, sl
 
     def get_volume(self, symbol: str) -> float:
         try:
@@ -289,6 +289,7 @@ class BinanceClient():
     def create_oco_short_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
         amount = float(open_order["amount"])
         price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+
         tp_price = price * (1 - self.tp)
         sl_price = price * (1 + self.sl)
 
@@ -302,11 +303,15 @@ class BinanceClient():
         sl_order = None
 
         if self.target == "FUTURE":
+            tp_order_type = "TAKE_PROFIT" if config["order_setting"]["tp_limit"] else "TAKE_PROFIT_MARKET"
+            sl_order_type = "STOP" if config["order_setting"]["sl_limit"] else "STOP_MARKET"
+
             try:
                 tp_order = self.exchange.create_order(
                     symbol,
-                    type="TAKE_PROFIT_MARKET",
+                    type=tp_order_type,
                     side="BUY",
+                    price=tp_price,
                     amount=amount,
                     params={
                         "stopPrice": tp_price,
@@ -324,9 +329,10 @@ class BinanceClient():
             try:
                 sl_order = self.exchange.create_order(
                     symbol,
-                    type="STOP_MARKET",
+                    type=sl_order_type,
                     side="BUY",
                     amount=amount,
+                    price=sl_price,
                     params={
                         "stopPrice": sl_price,
                         "closePosition": True,

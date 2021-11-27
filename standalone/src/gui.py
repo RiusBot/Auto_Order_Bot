@@ -18,10 +18,11 @@ def telegram_setting_layout():
         [
             # [sg.Combo(["Perpetual Data", "Rose Premium"])],
             [
-                sg.Radio("Perpetual Data", "telegram signal", key="P_signal"),
+                sg.Radio("Perpetual", "telegram signal", key="P_signal"),
                 sg.Radio("Rose Premium", "telegram signal", key="R_signal"),
-                sg.Radio("Benson Sentiment", "telegram signal", key="S_signal"),
-                sg.Radio("Justin", "telegram signal", key="J_signal")
+                sg.Radio("Sentiment", "telegram signal", key="S_signal"),
+                sg.Radio("Justin", "telegram signal", key="J_signal"),
+                sg.Radio("Scalp", "telegram signal", key="D_signal")
             ],
 
             [
@@ -204,10 +205,10 @@ def Generate_encoded_message_layout():
             [
                 sg.Column(
                     [
-                        [sg.Text("symbol:"), sg.Input(key="symbol")],
-                        [sg.Text("action:"), sg.Input(key="action")],
+                        [sg.Text("symbol:"), sg.Input(key="symbol", size=(24, 5))],
+                        [sg.Text("action:"), sg.Input(key="action", size=(24, 5))],
                         [sg.Button("Generate", key="generate")],
-                        [sg.Text("encoded:"), sg.Input(key="gen_output")],
+                        [sg.Text("encoded:"), sg.Input(key="gen_output", size=(24, 5))],
                     ],
                     element_justification="right"
                 ),
@@ -226,8 +227,8 @@ def Parsing_layout():
             [
                 sg.Column(
                     [
-                        [sg.Text("Input\nmessage"), sg.Multiline(size=(43, 10), key="test_input")],
-                        [sg.Text("Results"), sg.Multiline(size=(43, 3), key="test_output")],
+                        [sg.Text("Input\nmessage"), sg.Multiline(size=(24, 10), key="test_input")],
+                        [sg.Text("Results"), sg.Multiline(size=(24, 3), key="test_output")],
                         [sg.Button("Parse", key="parse")],
                     ],
                     element_justification="right"
@@ -248,14 +249,14 @@ def Start_layout():
                 sg.Column(
                     [
                         [sg.Button("Start")],
-                        [sg.Multiline(size=(60, 25), key="log", reroute_stderr=True)]
+                        [sg.Multiline(size=(95, 30), key="log", reroute_stderr=True)]
                     ],
                     element_justification="center"
                 ),
 
             ]
         ],
-        element_justification="left"
+        element_justification="left",
     )
     return layout
 
@@ -302,6 +303,8 @@ def config_setup(window):
                     window["S_signal"].update(value=True)
                 elif value == "Justin":
                     window["J_signal"].update(value=True)
+                elif value == "Daily":
+                    window["D_signal"].update(value=True)
             else:
                 try:
                     window[key].update(value=value)
@@ -379,6 +382,8 @@ def update_config(window):
                     config["telegram_setting"]["signal"] = "Sentiment"
                 elif window["J_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Justin"
+                elif window["D_signal"].get() is True:
+                    config["telegram_setting"]["signal"] = "Daily"
             elif key == "signal_channel":
                 if window["R_signal"].get() is False:
                     config["telegram_setting"][key] = window[key].get()
@@ -562,8 +567,8 @@ def run_gui():
                 symbol_list, action, tp, sl = parse_pro(test_input)
                 test_output = f"symbol_list: {symbol_list}\naction: {action}\nstop loss: {sl}\ntake profit: {tp}"
             else:
-                symbol_list, action = ExchangeClient(config).parse(test_input, None)
-                test_output = f"symbol_list: {symbol_list}\naction: {action}"
+                symbol_list, action, tp, sl = ExchangeClient(config).parse(test_input, None)
+                test_output = f"symbol_list: {symbol_list}\naction: {action}\ntp: {tp}\nsl: {sl}"
             window["test_output"].update("")
             window["test_output"].print(test_output)
         if event == "generate":
