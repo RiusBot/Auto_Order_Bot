@@ -78,6 +78,7 @@ class BinanceClient():
 
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
+        symbol = symbol.replace("/", "")
         return float(self.exchange.fetchTicker(symbol)['info']["lastPrice"])
 
     def get_balance(self):
@@ -191,6 +192,7 @@ class BinanceClient():
                     type=tp_order_type,
                     side="SELL",
                     amount=amount,
+                    price=tp_price,
                     params={
                         "stopPrice": tp_price,
                         "closePosition": True,
@@ -210,6 +212,7 @@ class BinanceClient():
                     type=sl_order_type,
                     side="SELL",
                     amount=amount,
+                    price=sl_price,
                     params={
                         "stopPrice": sl_price,
                         "closePosition": True,
@@ -398,7 +401,7 @@ class BinanceClient():
                 amount = float(asset.get(token, 0))
                 price = self.get_price(symbol)
                 notional = amount * price
-                return True if notional > 1 else False
+                return "buy" if notional > 10 else False
             elif self.target == "FUTURE":
                 logging.info("check future duplicate")
                 positions = self.exchange.fetchPositions()
