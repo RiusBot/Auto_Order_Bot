@@ -180,7 +180,7 @@ async def message_handle(log, event):
 
     if config["listing_setting"]["blacklist_activate"]:
         if symbol in config["listing_setting"]["blacklist"]:
-            msg = f"{symbol} in blacklist. Guve up."
+            msg = f"{symbol} in blacklist. Give up."
             logging.info(msg)
             log.info = log.info
             return

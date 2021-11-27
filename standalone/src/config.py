@@ -97,6 +97,9 @@ def load_config() -> dict:
     if "minimum_volume" not in config["order_setting"]:
         config["order_setting"]["minimum_volume"] = 0
 
+    if "fibonacci" not in config["order_setting"]:
+        config["order_setting"]["fibonacci"] = 1.0
+
     config = type_casting(config)
     config["path"] = path
     config["config_path"] = path
