@@ -114,6 +114,8 @@ class FTXClient():
             Amount : {amount}
         """)
         order = self.exchange.createMarketBuyOrder(symbol, amount)
+        if order['price'] is None:
+            order['price'] = price
         logging.info(f"Open average price : {order['average']}")
         return order
 
@@ -163,9 +165,13 @@ class FTXClient():
         return order
 
     def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
+        price = open_order["price"]
         open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
-        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        if open_order.get("average") is not None:
+            price = float(open_order["average"])
+        elif open_order.get("price") is not None:
+            price = float(open_order["price"])
 
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
@@ -225,9 +231,14 @@ class FTXClient():
         return tp_order, sl_order, None
 
     def create_oco_short_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
+        price = open_order["price"]
         open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
-        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        if open_order.get("average") is not None:
+            price = float(open_order["average"])
+        elif open_order.get("price") is not None:
+            price = float(open_order["price"])
+
         tp_price = price * (1 - self.tp)
         sl_price = price * (1 + self.sl)
 
@@ -422,17 +433,19 @@ class FTXClient():
                 elif self.order_type == "Market":
                     open_order = self.create_market_sell(symbol)
 
-            if open_order and self.sl != 0 and self.tp != 0:
+            if open_order:
 
-                if action == "buy":
-                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
-                elif action == "sell":
-                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+                if (self.sl != 0 and self.tp != 0) or (take_profit is not None and stop_loss is not None):
 
-                if sell_order is not None:
-                    result = self.clean_up(open_order, sell_order, msg="oco failed")
-                    open_order = None
-                    result_list.append(result)
+                    if action == "buy":
+                        tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
+                    elif action == "sell":
+                        tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+
+                    if sell_order is not None:
+                        result = self.clean_up(open_order, sell_order, msg="oco failed")
+                        open_order = None
+                        result_list.append(result)
 
             if open_order:
                 orders_list.append("buy order placed.")

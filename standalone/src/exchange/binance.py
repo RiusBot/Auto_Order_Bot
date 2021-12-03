@@ -72,6 +72,7 @@ class BinanceClient():
 
     def get_volume(self, symbol: str) -> float:
         try:
+            symbol = symbol.replace("/", "")
             return float(self.exchange.fapiPublic_get_ticker_24hr({'symbol': symbol})["volume"])
         except Exception:
             logging.excpetion("")
@@ -211,7 +212,7 @@ class BinanceClient():
                     price=tp_price,
                     params={
                         "stopPrice": tp_price,
-                        "closePosition": True,
+                        "closePosition": not config["order_setting"]["tp_limit"],
                         "priceProtect": True
                     }
                 )
@@ -231,7 +232,7 @@ class BinanceClient():
                     price=sl_price,
                     params={
                         "stopPrice": sl_price,
-                        "closePosition": True,
+                        "closePosition": not config["order_setting"]["sl_limit"],
                         "priceProtect": True
                     }
                 )
@@ -495,17 +496,19 @@ class BinanceClient():
                 elif self.order_type == "Market":
                     open_order = self.create_market_sell(symbol)
 
-            if open_order and self.sl != 0 and self.tp != 0:
+            if open_order:
 
-                if action == "buy":
-                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
-                elif action == "sell":
-                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+                if (self.sl != 0 and self.tp != 0) or (take_profit is not None and stop_loss is not None):
 
-                if sell_order is not None:
-                    result = self.clean_up(open_order, sell_order, msg="oco failed")
-                    open_order = None
-                    result_list.append(result)
+                    if action == "buy":
+                        tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
+                    elif action == "sell":
+                        tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+
+                    if sell_order is not None:
+                        result = self.clean_up(open_order, sell_order, msg="oco failed")
+                        open_order = None
+                        result_list.append(result)
 
             if open_order:
                 orders_list.append("order placed.")
