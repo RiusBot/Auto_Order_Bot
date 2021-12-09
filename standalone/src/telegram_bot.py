@@ -150,7 +150,7 @@ async def message_handle(log, event):
     if config["other_setting"]["pro"]:
         symbol_list, action, tp, sl = parse_pro(event.text)
     else:
-        symbol_list, action = ExchangeClient(config).parse(event.text, None)
+        symbol_list, action, tp, sl = ExchangeClient(config).parse(event.text, None)
     log.parse = True
 
     if symbol_list:
@@ -180,7 +180,7 @@ async def message_handle(log, event):
 
     if config["listing_setting"]["blacklist_activate"]:
         if symbol in config["listing_setting"]["blacklist"]:
-            msg = f"{symbol} in blacklist. Guve up."
+            msg = f"{symbol} in blacklist. Give up."
             logging.info(msg)
             log.info = log.info
             return

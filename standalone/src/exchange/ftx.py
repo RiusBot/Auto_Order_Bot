@@ -5,7 +5,7 @@ import json
 import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
-
+from src.utils.ohlcv_utils import get_fibonacci
 from src.exchange.parse import parse
 from src.config import config
 
@@ -25,6 +25,7 @@ class FTXClient():
         self.margin = config["order_setting"]["margin_level_ratio"]
         self.subaccount = config["exchange_setting"]["subaccount"]
         self.no_duplicate = config["order_setting"]["no_duplicate"]
+        self.fibonacci = config["order_setting"]["fibonacci"]
 
         options = {
             "defaultType": self.target.lower(),
@@ -58,7 +59,7 @@ class FTXClient():
 
     def parse(self, message: str, img_path: str) -> Tuple[List[str], str]:
         base = "-PERP" if self.target == "FUTURE" else "/USD"
-        symbol_list, action = parse(message, base, img_path)
+        symbol_list, action, tp, sl = parse(message, base, img_path)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -68,7 +69,7 @@ class FTXClient():
 
         logging.info(f"Symbols: {symbol_list}")
         logging.info(f"Action: {action}")
-        return symbol_list, action
+        return symbol_list, action, tp, sl
 
     def get_volume(self, symbol: str) -> float:
         try:
@@ -99,6 +100,11 @@ class FTXClient():
         margin = self.exchange.private_get_account()["result"]["marginFraction"]
         return 999 if margin is None else float(margin)
 
+    # trace back 12 hours
+    def get_ohlcv(self, symbol):
+        since = self.exchange.milliseconds() - 12 * 60 * 60 * 1000
+        return self.exchange.fetch_ohlcv(symbol, '1h', since)
+
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
@@ -108,11 +114,22 @@ class FTXClient():
             Amount : {amount}
         """)
         order = self.exchange.createMarketBuyOrder(symbol, amount)
+        if order['price'] is None:
+            order['price'] = price
         logging.info(f"Open average price : {order['average']}")
         return order
 
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
+        if self.fibonacci > 0 and self.fibonacci < 1:
+            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlcv(symbol))
+            logging.info(info)
+
+            if fibo_price < price:
+                price = fibo_price
+            else:
+                logging.info(f"""Current price ${price} is lower than fibonacci price ${fibo_price}, use limit price""")
+
         amount = self.quantity / price * self.leverage
         logging.info(f"""
             Limit Buy {symbol}
@@ -148,9 +165,14 @@ class FTXClient():
         return order
 
     def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
+        price = open_order["price"]
         open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
-        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        if open_order.get("average") is not None:
+            price = float(open_order["average"])
+        elif open_order.get("price") is not None:
+            price = float(open_order["price"])
+
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
 
@@ -209,9 +231,14 @@ class FTXClient():
         return tp_order, sl_order, None
 
     def create_oco_short_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
+        price = open_order["price"]
         open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
-        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        if open_order.get("average") is not None:
+            price = float(open_order["average"])
+        elif open_order.get("price") is not None:
+            price = float(open_order["price"])
+
         tp_price = price * (1 - self.tp)
         sl_price = price * (1 + self.sl)
 
@@ -406,17 +433,19 @@ class FTXClient():
                 elif self.order_type == "Market":
                     open_order = self.create_market_sell(symbol)
 
-            if open_order and self.sl != 0 and self.tp != 0:
+            if open_order:
 
-                if action == "buy":
-                    tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
-                elif action == "sell":
-                    tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+                if (self.sl != 0 and self.tp != 0) or (take_profit is not None and stop_loss is not None):
 
-                if sell_order is not None:
-                    result = self.clean_up(open_order, sell_order, msg="oco failed")
-                    open_order = None
-                    result_list.append(result)
+                    if action == "buy":
+                        tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
+                    elif action == "sell":
+                        tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+
+                    if sell_order is not None:
+                        result = self.clean_up(open_order, sell_order, msg="oco failed")
+                        open_order = None
+                        result_list.append(result)
 
             if open_order:
                 orders_list.append("buy order placed.")
