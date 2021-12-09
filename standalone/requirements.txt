@@ -3,10 +3,3 @@ pyyaml
 pysimplegui
 pandas
 pyinstaller
-
-#matplotlib
-#msvc-runtime
-#easyocr
-#numpy
-#pillow
-#python-binance==1.0.14

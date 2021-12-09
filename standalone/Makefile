@@ -2,7 +2,7 @@
 # General
 ###########################
 
-.PHONY: test
+.PHONY: test init
 test:
 	python -m pytest
 
@@ -21,7 +21,7 @@ doc:
 compile-all: compile compile-win compile-linux
 
 compile:
-	pyinstaller --noconsole -F src/gui.py
+	pyinstaller --noconsole -D src/gui.py
 
 compile-win:
 	# this is for compile windows exe on mac
@@ -64,17 +64,17 @@ install-env:
 			echo "# ===========================" >> $$HOME/.bashrc ;\
 		fi \
 	fi
-	@. $$HOME/.bashrc
-	@if ! (python3 -m pip list --disable-pip-version-check | grep pipenv > /dev/null) ; then \
-		python3 -m pip install pipenv ; \
-		if ! grep -Fq "\$$PATH:\$$PYTHON_BIN_PATH" $$HOME/.bashrc; then \
-			echo "export PATH=\$$PATH:\$$PYTHON_BIN_PATH" >> $$HOME/.bashrc ; \
-		fi \
-		if ! grep -Fq "pipenv" $$HOME/.bashrc; then\
-			echo "export PYTHON_BIN_PATH=$$(python3 -m site --user-base)/bin" >> $$HOME/.bashrc ; \
-		fi \
-	fi
-	@. $$HOME/.bashrc
+  # @. $$HOME/.bashrc
+  # @if ! (python3 -m pip list --disable-pip-version-check | grep pipenv > /dev/null) ; then \
+  #   python3 -m pip install pipenv ; \
+  #   if ! grep -Fq "\$$PATH:\$$PYTHON_BIN_PATH" $$HOME/.bashrc; then \
+  #     echo "export PATH=\$$PATH:\$$PYTHON_BIN_PATH" >> $$HOME/.bashrc ; \
+  #   fi \
+  #   if ! grep -Fq "pipenv" $$HOME/.bashrc; then\
+  #     echo "export PYTHON_BIN_PATH=$$(python3 -m site --user-base)/bin" >> $$HOME/.bashrc ; \
+  #   fi \
+  # fi
+  # @. $$HOME/.bashrc
 
 uninstall-env:
 	python3 -m pip uninstall -y pipenv
@@ -108,7 +108,7 @@ check-env:
 	fi \
 
 install:
-	pipenv install --dev
+	pipenv install --dev --skip-lock
 
 uninstall:
 	pipenv clean

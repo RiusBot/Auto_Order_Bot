@@ -4,9 +4,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-telethon = "*"
-python-binance = "==1.0.14"
-PyYAML = "*"
 src = {path = "./src", editable = true}
 
 [dev-packages]
