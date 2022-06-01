@@ -29,7 +29,13 @@ class BinanceClient():
             'options': {
                 "defaultType": self.target.lower(),
                 "adjustForTimeDifference": True,
-                "verbose": True
+                "verbose": True,
+                'broker': {
+                    'spot': 'x-V9ZBVGB7',
+                    'margin': 'x-V9ZBVGB7',
+                    'future': 'x-61E2GsBt',
+                    'delivery': 'x-61E2GsBt',
+                },
             }
         })
 

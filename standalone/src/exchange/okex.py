@@ -32,7 +32,8 @@ class OKEXClient():
             'options': {
                 "defaultType": self.target.lower(),
                 "adjustForTimeDifference": True,
-                "verbose": True
+                "verbose": True,
+                'brokerId': 'a8a0f2138d1bBCDE'
             }
         })
 
