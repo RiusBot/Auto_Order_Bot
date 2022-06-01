@@ -69,6 +69,34 @@ def load_config() -> dict:
 
     with open(path, "r", encoding='utf-8') as f:
         config = yaml.safe_load(f)
+
+    if "listing_setting" not in config:
+        config["listing_setting"] = {
+            "whitelist_activate": False,
+            "blacklist_activate": False,
+        }
+
+    if "session" not in config["telegram_setting"]:
+        config["telegram_setting"]["session"] = "anon"
+
+    if "make_short" not in config["order_setting"]:
+        config["order_setting"]["make_short"] = False
+
+    if "auto_sl_tp" not in config["other_setting"]:
+        config["other_setting"]["auto_sl_tp"] = False
+
+    if "sl_limit" not in config["order_setting"]:
+        config["order_setting"]["sl_limit"] = False
+
+    if "tp_limit" not in config["order_setting"]:
+        config["order_setting"]["tp_limit"] = False
+
+    if "minimum_volume" not in config["order_setting"]:
+        config["order_setting"]["minimum_volume"] = 0
+
+    if "fibonacci" not in config["order_setting"]:
+        config["order_setting"]["fibonacci"] = 1.0
+
     config = type_casting(config)
     config["path"] = path
     return config

@@ -96,9 +96,96 @@ def parse_symbol_substitute(message: str,):
     return new_str
 
 
-def parse(message: str, base: str) -> Tuple[List[str], str]:
-    message = message.lower()
-    message = parse_symbol_substitute(message)
-    symbol_list = parse_symbol(message)
-    action = parse_action(message) if symbol_list else None
+def parse_justin(message: str):
+    action = None
+    symbol_list = []
+
+    if "今天" in message and "進" in message:
+        action = "buy"
+        symbol_list = parse_justin_symbol(message)
+    elif "今天" in message and "出" in message:
+        action = "sell"
+        symbol_list = parse_justin_symbol(message)
+
     return symbol_list, action
+
+
+def parse_justin_symbol(message: str):
+    message = re.compile('[^a-zA-Z0-9\n]').sub('', message)
+    symbol_list = []
+    lines = [i.strip() for i in message.split('\n') if i.strip()]
+    for line in lines:
+        symbol = ""
+        for c in line:
+            if c.isalpha():
+                symbol += c
+            else:
+                break
+        symbol_list.append(symbol)
+    return symbol_list
+
+
+def parse_daily(message: str):
+    action = None
+    if "long" in message.lower():
+        action = "buy"
+    elif "short" in message.lower():
+        action = "sell"
+
+    sl = None
+    tp = None
+    entry = None
+    symbol_list = []
+    lines = [i for i in message.split('\n') if i]
+    for e, line in enumerate(lines):
+        if e == 0:
+            symbol_list = [i.replace("USDT", "").upper() for i in line.split(' ') if i]
+            continue
+
+        key, value = line.split(':')
+        key, value = key.strip().lower(), value.strip().lower()
+
+        if "entry" in key:
+            entry = float(value.split(' ')[0])
+        elif "target" in key:
+            tp = float(value.split(' ')[0])
+        elif "stop loss" in key:
+            sl = float(value.split(' ')[0])
+
+    if sl is None and entry is not None and tp is not None:
+        if action == "buy":
+            sl = entry - (tp - entry)
+        elif action == "sell":
+            sl = entry + (entry - tp)
+
+    return symbol_list, action, tp, sl
+
+
+def parse(message: str, base: str, img_path) -> Tuple[List[str], str]:
+    tp, sl = None, None
+    if config["telegram_setting"]["signal"] == "Rose":
+        message = message.lower()
+        message = parse_symbol_substitute(message)
+        symbol_list = parse_symbol(message, img_path)
+        action = parse_action(message)
+    elif config["telegram_setting"]["signal"] == "Perpetual":
+        symbol_list = re.findall('#[^\s]+', message)
+        symbol_list = [i.replace('#', '') for i in symbol_list]
+        action = None
+        if "看漲" in message:
+            action = "buy"
+        elif "看跌" in message:
+            action = "sell"
+    elif config["telegram_setting"]["signal"] == "Sentiment":
+        message = re.compile('[^a-zA-Z\n ]').sub('', message)
+        symbol_list = message.split(' ')[:1]
+        action = None
+        if "Overheated" in message or "FOMO" in message:
+            action = "sell"
+        elif "Fear" in message:
+            action = "buy"
+    elif config["telegram_setting"]["signal"] == "Justin":
+        symbol_list, action = parse_justin(message)
+    elif config["telegram_setting"]["signal"] == "Daily":
+        symbol_list, action, tp, sl = parse_daily(message)
+    return symbol_list, action, tp, sl

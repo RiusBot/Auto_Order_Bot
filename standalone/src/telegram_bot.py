@@ -139,14 +139,38 @@ async def message_handle(log, event):
     if not symbol_list or action is None:
         return
     else:
-        log.parse = True
+        symbol_list, action, tp, sl = ExchangeClient(config).parse(event.text, None)
+    log.parse = True
+
+    if symbol_list:
         log.symbol = symbol_list
         log.action = action
 
     if action != "buy":
         return
 
-    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list)
+    symbol = symbol_list[0]
+    if config["listing_setting"]["whitelist_activate"]:
+        if symbol not in config["listing_setting"]["whitelist"]:
+            msg = f"{symbol} not in whitelist. Give up."
+            logging.info(msg)
+            log.info = log.info
+            return
+        else:
+            msg = f"{symbol} in whitelist"
+            logging.info(msg)
+
+    if config["listing_setting"]["blacklist_activate"]:
+        if symbol in config["listing_setting"]["blacklist"]:
+            msg = f"{symbol} in blacklist. Give up."
+            logging.info(msg)
+            log.info = log.info
+            return
+        else:
+            msg = f"{symbol} not in blacklist"
+            logging.info(msg)
+
+    order_list, result_list, margin_level = ExchangeClient(config).run(symbol_list, action, tp, sl)
     log.margin_level = margin_level
     log.order = order_list
     log.result = result_list

@@ -5,8 +5,9 @@ import json
 import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
-
-from .parse import parse
+from src.utils.ohlcv_utils import get_fibonacci
+from src.exchange.parse import parse
+from src.config import config
 
 
 class FTXClient():
@@ -22,6 +23,24 @@ class FTXClient():
         self.sl = config["order_setting"]["stop_loss"]
         self.tp = config["order_setting"]["take_profit"]
         self.margin = config["order_setting"]["margin_level_ratio"]
+        self.subaccount = config["exchange_setting"]["subaccount"]
+        self.no_duplicate = config["order_setting"]["no_duplicate"]
+        self.fibonacci = config["order_setting"]["fibonacci"]
+
+        options = {
+            "defaultType": self.target.lower(),
+            "adjustForTimeDifference": True,
+            "verbose": True
+        }
+        headers = {}
+
+        if self.subaccount:
+            headers = {
+                'FTX-SUBACCOUNT': self.subaccount
+            }
+
+        logging.info(f"headers: {headers}")
+
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],
@@ -43,7 +62,7 @@ class FTXClient():
 
     def parse(self, message: str) -> Tuple[List[str], str]:
         base = "-PERP" if self.target == "FUTURE" else "/USD"
-        symbol_list, action = parse(message, base)
+        symbol_list, action, tp, sl = parse(message, base, img_path)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -53,7 +72,7 @@ class FTXClient():
 
         logging.info(f"Symbols: {symbol_list}")
         logging.info(f"Action: {action}")
-        return symbol_list, action
+        return symbol_list, action, tp, sl
 
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
@@ -71,7 +90,12 @@ class FTXClient():
         self.exchange.loadMarkets(True)
         return self.exchange.private_get_account()["result"]["marginFraction"]
 
-    def create_market_order(self, symbol: str):
+    # trace back 12 hours
+    def get_ohlcv(self, symbol):
+        since = self.exchange.milliseconds() - 12 * 60 * 60 * 1000
+        return self.exchange.fetch_ohlcv(symbol, '1h', since)
+
+    def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
         order = self.exchange.createMarketBuyOrder(symbol, amount)
@@ -80,10 +104,23 @@ class FTXClient():
             Open price : {order['average']}
             Amount : {amount}
         """)
+        order = self.exchange.createMarketBuyOrder(symbol, amount)
+        if order['price'] is None:
+            order['price'] = price
+        logging.info(f"Open average price : {order['average']}")
         return order
 
     def create_limit_order(self, symbol: str):
         price = self.get_price(symbol)
+        if self.fibonacci > 0 and self.fibonacci < 1:
+            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlcv(symbol))
+            logging.info(info)
+
+            if fibo_price < price:
+                price = fibo_price
+            else:
+                logging.info(f"""Current price ${price} is lower than fibonacci price ${fibo_price}, use limit price""")
+
         amount = self.quantity / price * self.leverage
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
         order["average"] = order.get("price", price)
@@ -94,11 +131,89 @@ class FTXClient():
         """)
         return order
 
-    def create_oco_order(self, symbol: str, open_order):
+    def create_oco_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
+        price = open_order["price"]
+        open_order = self.exchange.fetchOrder(open_order["id"])
         amount = float(open_order["amount"])
-        price = float(open_order["average"])
+        if open_order.get("average") is not None:
+            price = float(open_order["average"])
+        elif open_order.get("price") is not None:
+            price = float(open_order["price"])
+
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
+
+        if config["other_setting"]["auto_sl_tp"] and take_profit is not None:
+            tp_price = take_profit
+        if config["other_setting"]["auto_sl_tp"] and stop_loss is not None:
+            sl_price = stop_loss
+
+        logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
+        tp_order = None
+        sl_order = None
+
+        try:
+            params = {
+                "market": symbol,
+                "side": "sell",
+                "triggerPrice": tp_price,
+                "size": amount,
+                "type": "takeProfit",
+                "reduceOnly": True
+            }
+            if config["order_setting"]["tp_limit"]:
+                params["orderPrice"] = tp_price
+
+            tp_order = self.exchange.private_post_conditional_orders(
+                params=params
+            )
+        except Exception as e:
+            logging.error(str(e))
+            if "-2021" in e.args[0]:
+                sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                logging.info("Sell immediately.")
+                return None, None, sell_order
+
+        try:
+            params = {
+                "market": symbol,
+                "side": "sell",
+                "triggerPrice": sl_price,
+                "size": amount,
+                "type": "stop",
+                "reduceOnly": True
+            }
+            if config["order_setting"]["sl_limit"]:
+                params["orderPrice"] = sl_price
+            sl_order = self.exchange.private_post_conditional_orders(
+                params=params
+            )
+        except Exception as e:
+            logging.error(str(e))
+            if "-2021" in e.args[0]:
+                sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                logging.info("Sell immediately.")
+                return None, None, sell_order
+
+        return tp_order, sl_order, None
+
+    def create_oco_short_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
+        price = open_order["price"]
+        open_order = self.exchange.fetchOrder(open_order["id"])
+        amount = float(open_order["amount"])
+        if open_order.get("average") is not None:
+            price = float(open_order["average"])
+        elif open_order.get("price") is not None:
+            price = float(open_order["price"])
+
+        tp_price = price * (1 - self.tp)
+        sl_price = price * (1 + self.sl)
+
+        if config["other_setting"]["auto_sl_tp"] and take_profit is not None:
+            tp_price = take_profit
+        if config["other_setting"]["auto_sl_tp"] and stop_loss is not None:
+            sl_price = stop_loss
+
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
 
         if self.target == "FUTURE":
@@ -272,12 +387,31 @@ class FTXClient():
 
             tp_order = None
             sl_order = None
-            if self.sl != 0 and self.tp != 0:
-                tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
-                if sell_order is not None:
-                    result = self.clean_up(open_order, sell_order, msg="oco failed")
-                    open_order = None
-                    result_list.append(result)
+
+            if action == "buy":
+                if self.order_type == "Limit":
+                    open_order = self.create_limit_buy(symbol)
+                elif self.order_type == "Market":
+                    open_order = self.create_market_buy(symbol)
+            elif action == "sell":
+                if self.order_type == "Limit":
+                    open_order = self.create_limit_sell(symbol)
+                elif self.order_type == "Market":
+                    open_order = self.create_market_sell(symbol)
+
+            if open_order:
+
+                if (self.sl != 0 and self.tp != 0) or (take_profit is not None and stop_loss is not None):
+
+                    if action == "buy":
+                        tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
+                    elif action == "sell":
+                        tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
+
+                    if sell_order is not None:
+                        result = self.clean_up(open_order, sell_order, msg="oco failed")
+                        open_order = None
+                        result_list.append(result)
 
             orders_list.append((open_order, tp_order, sl_order))
 

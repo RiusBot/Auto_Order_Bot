@@ -6,6 +6,7 @@ log_setting:
   bot_log_path: rose_bot_log.csv
   log_path: log.txt
 order_setting:
+fibonacci: 1.0
   hold: ''
   leverage: '1.0'
   limit: false

@@ -14,20 +14,27 @@ def telegram_setting_layout():
         [
             # [sg.Combo(["Perpetual Data", "Rose Premium"])],
             [
-                sg.Radio("Perpetual Data", "telegram signal", key="P_signal", disabled=True, default=False),
-                sg.Radio("Rose Premium", "telegram signal", key="R_signal", default=True),
-                # sg.Radio("Notification", "telegram signal", key="N_signal")
+                sg.Radio("Perpetual", "telegram signal", key="P_signal"),
+                sg.Radio("Rose Premium", "telegram signal", key="R_signal"),
+                sg.Radio("Sentiment", "telegram signal", key="S_signal"),
+                sg.Radio("Justin", "telegram signal", key="J_signal"),
+                sg.Radio("Scalp", "telegram signal", key="D_signal")
             ],
 
             [
                 sg.Column(
                     [
+
                         [sg.Text("Telegram ID"), sg.In(key="telegram_api_id")],
                         [sg.Text("Telegram Hash"), sg.In(key="telegram_api_hash")],
-                        [sg.Text("Signal channel"), sg.In(key="signal_channel")],  # , sg.Button("Browse", key="all_dialog1")
-                        [sg.Text("Nofify channel"), sg.In(key="notify_channel")],  # , sg.Button("Browse", key="all_dialog2")
-                        [sg.Text("Testing channel"), sg.In(key="test_channel")],  # , sg.Button("Browse", key="all_dialog3")
-                        [sg.Button("Login", key="login")],
+                        [sg.Text("Session name"), sg.In(key="session")],
+                        [sg.Text("Signal channel"), sg.In(key="signal_channel")],
+                        # , sg.Button("Browse", key="all_dialog1")
+                        [sg.Text("Nofify channel"), sg.In(key="notify_channel")],
+                        # , sg.Button("Browse", key="all_dialog2")
+                        [sg.Text("Testing channel"), sg.In(key="test_channel")],
+                        # , sg.Button("Browse", key="all_dialog3")
+                        [sg.Button("Login", key="login")]
                     ],
                     element_justification="right"
                 )
@@ -45,12 +52,14 @@ def exchange_setting_layout():
             [
                 sg.Column(
                     [
-                        [sg.Text("Exchange"), sg.Combo(ccxt.exchanges, size=42, key="exchange")],
-                        [sg.Text("API Key"), sg.In(key="api_key")],
-                        [sg.Text("API Secret"), sg.In(key="api_secret")],
+                        [sg.Text("Exchange"), sg.Combo(ccxt.exchanges, size=14, key="exchange"), sg.Text("Subaccount"),
+                         sg.In(size=14, key="subaccount")],
+                        [sg.Text("API Key"), sg.In(size=44, key="api_key")],
+                        [sg.Text("API Secret"), sg.In(size=44, key="api_secret")]
                     ],
                     element_justification="right"
-                )
+                ),
+
             ]
         ],
         element_justification="center"
@@ -67,8 +76,9 @@ def order_setting_layout():
                     [
                         [sg.Text("Target"), sg.Combo(["SPOT", "MARGIN", "FUTURE"], size=15, key="target")],
                         [sg.Checkbox('Test only', default=True, key="test_only")],
-                        [sg.Radio('Limit', "order_type", key="limit")],
-                        [sg.Radio("Market", "order_type", key="market")],
+                        [sg.Checkbox('No duplicate order', default=True, key="no_duplicate")],
+                        [sg.Checkbox('Make short order', default=True, key="make_short")],
+                        [sg.Radio('Limit', "order_type", key="limit"), sg.Radio("Market", "order_type", key="market")]
                     ],
                     element_justification="left"
                 ),
@@ -76,20 +86,19 @@ def order_setting_layout():
                     [
                         [sg.Text("Quantity"), sg.In(size=15, key="quantity")],
                         [sg.Text("Leverage"), sg.In(size=15, key="leverage")],
+                        [sg.Text("Minimum margin level/ratio"), sg.In(size=15, key="margin_level_ratio")],
+                        [sg.Text("Perpetual minimum 24 volume"), sg.In(size=15, key="minimum_volume")],
                     ],
                     element_justification="right"
                 ),
                 sg.Column(
                     [
-                        [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("%")],
-                        [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("%")],
-                    ],
-                    element_justification="right"
-                ),
-                sg.Column(
-                    [
-                        [sg.Text("minimum margin level/ratio"), sg.In(size=15, key="margin_level_ratio")],
-                        [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)]
+                        [sg.Text("Stop Loss "), sg.In(size=15, key="stop_loss"), sg.Text("")],
+                        [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("")],
+                        [sg.Text("Fibonacci  "), sg.In(size=15, key="fibonacci"), sg.Text("")],
+                        [sg.Text("hold", visible=False), sg.In(size=15, key="hold", visible=False)],
+                        [sg.Checkbox('SL limit', default=True, key="sl_limit"),
+                         sg.Checkbox('TP limit', default=True, key="tp_limit")]
                     ],
                     element_justification="right"
                 ),
@@ -122,6 +131,7 @@ def new_order_setting_layout():
             [
                 [sg.Text("Stop Loss"), sg.In(size=15, key="stop_loss"), sg.Text("%")],
                 [sg.Text("Take Profit"), sg.In(size=15, key="take_profit"), sg.Text("%")],
+                # [sg.Text("Trailing Stop"), sg.In(size=15, key="trailing_stop"), sg.Text("%")],
             ],
             element_justification="right"
         ),
@@ -155,6 +165,123 @@ def save_setting_layout():
     return layout
 
 
+def other_setting_layout():
+    layout = sg.Frame(
+        "Other setting",
+        [[
+            sg.Column(
+                [
+                    [sg.Checkbox('Rose For Bot', default=False, key="pro")],
+                    [sg.Checkbox('Auto SL TP', default=False, key="auto_sl_tp")],
+                    [sg.Text("Maximum latency"), sg.In(size=5, key="maximum_latency")],
+                ],
+                element_justification="left"
+            ),
+            sg.VerticalSeparator(pad=None),
+            sg.Column(
+                [
+                    [sg.Text("Trigger keywords for Rose channel")],
+                    [sg.Text("Long"), sg.In(size=22, key="long")],
+                    [sg.Text("Short"), sg.In(size=22, key="short")],
+                ],
+                element_justification="right"
+            ),
+        ]],
+        element_justification="center",
+        visible=True
+    )
+    return layout
+
+
+def Generate_encoded_message_layout():
+    layout = sg.Frame(
+        "Generate encoded message",
+        [
+            [
+                sg.Column(
+                    [
+                        [sg.Text("symbol:"), sg.Input(key="symbol", size=(24, 5))],
+                        [sg.Text("action:"), sg.Input(key="action", size=(24, 5))],
+                        [sg.Button("Generate", key="generate")],
+                        [sg.Text("encoded:"), sg.Input(key="gen_output", size=(24, 5))],
+                    ],
+                    element_justification="right"
+                ),
+
+            ]
+        ],
+        element_justification="right"
+    )
+    return layout
+
+
+def Parsing_layout():
+    layout = sg.Frame(
+        "Parsing",
+        [
+            [
+                sg.Column(
+                    [
+                        [sg.Text("Input\nmessage"), sg.Multiline(size=(24, 10), key="test_input")],
+                        [sg.Text("Results"), sg.Multiline(size=(24, 3), key="test_output")],
+                        [sg.Button("Parse", key="parse")],
+                    ],
+                    element_justification="right"
+                )
+
+            ]
+        ],
+        element_justification="right"
+    )
+    return layout
+
+
+def Start_layout():
+    layout = sg.Frame(
+        "Run",
+        [
+            [
+                sg.Column(
+                    [
+                        [sg.Button("Start")],
+                        [sg.Multiline(size=(95, 30), key="log", reroute_stderr=True)]
+                    ],
+                    element_justification="center"
+                ),
+
+            ]
+        ],
+        element_justification="left",
+    )
+    return layout
+
+
+def listing_layout():
+    exchange = getattr(ccxt, config["exchange_setting"]["exchange"])()
+    exchange.loadMarkets()
+    return [
+        [
+            sg.Column([
+                [sg.Text("All markets"), sg.In(key="search_target", size=(15, 5)), sg.Button("search", key="search")],
+                [sg.Listbox(values=list(exchange.markets.keys()), size=(40, 20), key="markets")],
+                [sg.Button("whitelist", key="white_add"), sg.Button("blacklist", key="black_add")]
+            ]),
+            sg.Column([
+                [sg.Checkbox("Activate whitelist", key="whitelist_activate")],
+                [sg.Listbox(values=config["listing_setting"]["whitelist"], size=(40, 20), key="whitelist")],
+                [sg.Button("remove", key="white_rm")]
+            ]),
+            sg.Column([
+                [sg.Checkbox("Activate blacklist", key="blacklist_activate")],
+                [sg.Listbox(values=config["listing_setting"]["blacklist"], size=(40, 20), key="blacklist")],
+                [sg.Button("remove", key="black_rm")]
+            ])
+        ],
+        [sg.HorizontalSeparator(pad=None)],
+        [save_setting_layout()]
+    ]
+
+
 def config_setup(window):
     try:
         # telegram setting
@@ -164,6 +291,12 @@ def config_setup(window):
                     window["R_signal"].update(value=True)
                 elif value == "Perpetual":
                     window["P_signal"].update(value=True)
+                elif value == "Sentiment":
+                    window["S_signal"].update(value=True)
+                elif value == "Justin":
+                    window["J_signal"].update(value=True)
+                elif value == "Daily":
+                    window["D_signal"].update(value=True)
             else:
                 window[key].update(value=value)
 
@@ -184,6 +317,15 @@ def validate_config(config: dict):
     if (config["order_setting"]["stop_loss"] == 0) ^ (config["order_setting"]["take_profit"] == 0):
         raise Exception("Stop loss and Take profit has to be both zero or both set.")
 
+    if not (config["order_setting"]["stop_loss"] >= 0 and config["order_setting"]["stop_loss"] <= 1):
+        raise Exception("0 <= Stop loss <= 1.")
+
+    if not (config["order_setting"]["take_profit"] >= 0 and config["order_setting"]["take_profit"] <= 1):
+        raise Exception("0 <= Take profit <= 1.")
+    #
+    # if not (config["order_setting"]["trailing_stop"] >= 0 and config["order_setting"]["trailing_stop"] <= 1):
+    #     raise Exception("0 <= Trailing stop <= 1.")
+
 
 def update_config(window):
     try:
@@ -196,6 +338,12 @@ def update_config(window):
                     config["telegram_setting"]["signal"] = "Rose"
                 elif window["P_signal"] is True:
                     config["telegram_setting"]["signal"] = "Perpetual"
+                elif window["S_signal"].get() is True:
+                    config["telegram_setting"]["signal"] = "Sentiment"
+                elif window["J_signal"].get() is True:
+                    config["telegram_setting"]["signal"] = "Justin"
+                elif window["D_signal"].get() is True:
+                    config["telegram_setting"]["signal"] = "Daily"
             elif key == "signal_channel":
                 continue
             else:
@@ -237,20 +385,38 @@ def run_gui():
         [
             telegram_setting_layout(),
             sg.VerticalSeparator(pad=None),
-            exchange_setting_layout(),
+            sg.Column([[exchange_setting_layout()],
+                       [other_setting_layout()]])
         ],
         [order_setting_layout()],
         [save_setting_layout()],
     ]
     main_tab = [
-        [sg.Button("Start")],
-        [sg.Multiline(size=(120, 30), key="log", reroute_stderr=True)]
+        [
+            Start_layout(),
+            sg.Frame(
+                "Test",
+                [
+                    [
+                        sg.Column(
+                            [
+                                [Generate_encoded_message_layout()],
+                                [Parsing_layout()]
+                            ],
+                            element_justification="center"
+                        )
+                    ]
+                ]
+            )
+        ],
     ]
+    listing_tab = listing_layout()
     layout = [
         [sg.TabGroup(
             [[
                 sg.Tab("Setting", setting_tab, element_justification="center"),
-                sg.Tab("Run", main_tab, element_justification="center")
+                sg.Tab("Run", main_tab, element_justification="center"),
+                sg.Tab("Listing", listing_tab, element_justification="center")
             ]]
         )]
     ]
@@ -267,6 +433,36 @@ def run_gui():
             sg.Popup("Login Success.")
         if event == "Save":
             update_config(window)
+        if event == "Save0":
+            try:
+                whitelist = window["whitelist"].get_list_values()
+                blacklist = window["blacklist"].get_list_values()
+                config["listing_setting"]["whitelist"] = whitelist
+                config["listing_setting"]["blacklist"] = blacklist
+                save_lists(config)
+                config["listing_setting"]["whitelist_activate"] = window["whitelist_activate"].get()
+                config["listing_setting"]["blacklist_activate"] = window["blacklist_activate"].get()
+                sg.popup("Listing Saved !!")
+            except Exception:
+                logging.exception("")
+                sg.Popup(f"Save listing failed !!\n\n{traceback.format_exc()}")
+        if event == "parse":
+            test_input = window["test_input"].get()
+            if config["other_setting"]["pro"]:
+                symbol_list, action, tp, sl = parse_pro(test_input)
+                test_output = f"symbol_list: {symbol_list}\naction: {action}\nstop loss: {sl}\ntake profit: {tp}"
+            else:
+                symbol_list, action, tp, sl = ExchangeClient(config).parse(test_input, None)
+                test_output = f"symbol_list: {symbol_list}\naction: {action}\ntp: {tp}\nsl: {sl}"
+            window["test_output"].update("")
+            window["test_output"].print(test_output)
+        if event == "generate":
+            secret_msg = {
+                "symbol_list": [window["symbol"].get()],
+                "action": window["action"].get()
+            }
+            secret_msg = base64.b64encode(json.dumps(secret_msg).encode("ascii")).decode('ascii')
+            window["gen_output"].update(secret_msg)
         if event == "Start":
             try:
                 telegram_thread = threading.Thread(target=telegram_start, args=(config, window), daemon=True)

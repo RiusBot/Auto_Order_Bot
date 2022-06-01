@@ -2,7 +2,7 @@
 # General
 ###########################
 
-.PHONY: test
+.PHONY: test init
 test:
 	python -m pytest
 
@@ -19,7 +19,7 @@ doc:
 
 
 compile:
-	pyinstaller --noconsole -F src/gui.py
+	pyinstaller --noconsole -D src/gui.py
 
 compile-win:
 	# this is for compile windows exe on mac
@@ -27,7 +27,9 @@ compile-win:
 	cp -r src build-win
 	cp requirements.txt build-win/src
 	cp setup.py build-win/src
-	docker run -v "$(shell pwd)/build-win/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-windows "python -m pip install --upgrade pip && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
+	docker run -v "$(shell pwd)/build-win/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-windows "python -m pip install --upgrade pip setuptools && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -D gui.py"
+	# matplotlib msvc-runtime easyocr numpy pillow
+	# telethon pyyaml pysimplegui pandas
 
 compile-linux:
 	# this is for compile linux elf on mac
@@ -36,7 +38,7 @@ compile-linux:
 	cp -r src build-linux
 	cp requirements.txt build-linux/src
 	cp setup.py build-linux/src
-	docker run -v "$(shell pwd)/build-linux/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-linux "python -m pip install --upgrade pip && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -F gui.py"
+	docker run -v "$(shell pwd)/build-linux/src:/src/" -v "$(shell pwd)/setup.py:/setup.py" cdrx/pyinstaller-linux "python -m pip install --upgrade pip setuptools && python -m pip install ccxt && export PYTHONPATH=/ && pyinstaller -D gui.py"
 
 
 ###########################
@@ -60,17 +62,17 @@ install-env:
 			echo "# ===========================" >> $$HOME/.bashrc ;\
 		fi \
 	fi
-	@. $$HOME/.bashrc
-	@if ! (python3 -m pip list --disable-pip-version-check | grep pipenv > /dev/null) ; then \
-		python3 -m pip install pipenv ; \
-		if ! grep -Fq "\$$PATH:\$$PYTHON_BIN_PATH" $$HOME/.bashrc; then \
-			echo "export PATH=\$$PATH:\$$PYTHON_BIN_PATH" >> $$HOME/.bashrc ; \
-		fi \
-		if ! grep -Fq "pipenv" $$HOME/.bashrc; then\
-			echo "export PYTHON_BIN_PATH=$$(python3 -m site --user-base)/bin" >> $$HOME/.bashrc ; \
-		fi \
-	fi
-	@. $$HOME/.bashrc
+  # @. $$HOME/.bashrc
+  # @if ! (python3 -m pip list --disable-pip-version-check | grep pipenv > /dev/null) ; then \
+  #   python3 -m pip install pipenv ; \
+  #   if ! grep -Fq "\$$PATH:\$$PYTHON_BIN_PATH" $$HOME/.bashrc; then \
+  #     echo "export PATH=\$$PATH:\$$PYTHON_BIN_PATH" >> $$HOME/.bashrc ; \
+  #   fi \
+  #   if ! grep -Fq "pipenv" $$HOME/.bashrc; then\
+  #     echo "export PYTHON_BIN_PATH=$$(python3 -m site --user-base)/bin" >> $$HOME/.bashrc ; \
+  #   fi \
+  # fi
+  # @. $$HOME/.bashrc
 
 uninstall-env:
 	python3 -m pip uninstall -y pipenv
@@ -104,7 +106,7 @@ check-env:
 	fi \
 
 install:
-	pipenv install --dev
+	pipenv install --dev --skip-lock
 
 uninstall:
 	pipenv clean
