@@ -5,12 +5,12 @@ import json
 import logging
 from typing import List, Dict, Tuple
 from collections import defaultdict
-from src.utils.ohlcv_utils import get_fibonacci
-from src.exchange.parse import parse
-from src.config import config
+
+from parse import parse
 
 
-class BinanceClient():
+
+class OKEXClient():
 
     def __init__(self, config: dict):
         self.config = config
@@ -18,41 +18,22 @@ class BinanceClient():
         self.target = config["order_setting"]["target"]
         self.order_type = "Limit" if config["order_setting"]["limit"] is True else "Market"
         self.hold = config["order_setting"]["hold"]
-        self.quantity = float(config["order_setting"]["quantity"])
-        self.leverage = float(config["order_setting"]["leverage"])
-        self.sl = float(config["order_setting"]["stop_loss"])
-        self.tp = float(config["order_setting"]["take_profit"])
-        self.margin = float(config["order_setting"]["margin_level_ratio"])
-        self.subaccount = config["exchange_setting"]["subaccount"]
-        self.no_duplicate = config["order_setting"]["no_duplicate"]
-        self.fibonacci = config["order_setting"]["fibonacci"]
-
-        options = {
-            "defaultType": self.target.lower(),
-            "adjustForTimeDifference": True,
-            "verbose": True
-        }
-        headers = {}
-
-        if self.subaccount:
-            headers = {
-
-            }
-
+        self.quantity = config["order_setting"]["quantity"]
+        self.leverage = config["order_setting"]["leverage"]
+        self.sl = config["order_setting"]["stop_loss"]
+        self.tp = config["order_setting"]["take_profit"]
+        self.margin = config["order_setting"]["margin_level_ratio"]
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],
             "secret": config["exchange_setting"]["api_secret"],
+                "password":config["exchange_setting"]["password"],
+
             'options': {
                 "defaultType": self.target.lower(),
                 "adjustForTimeDifference": True,
                 "verbose": True,
-                'broker': {
-                    'spot': 'x-V9ZBVGB7',
-                    'margin': 'x-V9ZBVGB7',
-                    'future': 'x-61E2GsBt',
-                    'delivery': 'x-61E2GsBt',
-                },
+                'brokerId': 'a8a0f2138d1bBCDE'
             }
         })
 
@@ -67,7 +48,7 @@ class BinanceClient():
 
     def parse(self, message: str) -> Tuple[List[str], str]:
         base = "/USDT"
-        symbol_list, action, tp, sl = parse(message, base, img_path)
+        symbol_list, action = parse(message, base)
 
         # clean
         symbol_list = [i.replace("#", "").upper() for i in symbol_list]
@@ -77,20 +58,11 @@ class BinanceClient():
 
         logging.debug(f"Symbols: {symbol_list}")
         logging.debug(f"Action: {action}")
-        return symbol_list, action, tp, sl
-
-    def get_volume(self, symbol: str) -> float:
-        try:
-            symbol = symbol.replace("/", "")
-            return float(self.exchange.fapiPublic_get_ticker_24hr({'symbol': symbol})["volume"])
-        except Exception:
-            logging.excpetion("")
-            logging.error("get volume failed")
+        return symbol_list, action
 
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
-        symbol = symbol.replace("/", "")
-        return float(self.exchange.fetchTicker(symbol)['info']["lastPrice"])
+        return self.exchange.fetchTicker(symbol)['bid']
 
     def get_balance(self):
         balance = None
@@ -100,10 +72,10 @@ class BinanceClient():
                 if asset["asset"] == "USDT":
                     balance = asset["free"]
         elif self.target == "MARGIN":
-            assets = self.exchange.fetch_balance()["info"]["userAssets"]
-            for asset in assets:
-                if asset["asset"] == "USDT":
-                    balance = asset["free"]
+           for item in self.exchange.fetch_balance()['info']['data']:
+                for it in item['details']:
+                    if it['ccy'] == "USDT":
+                        balance = it['availEq']
         elif self.target == "FUTURE":
             balance = self.exchange.fetch_balance()["info"]['avaiableBalance']
         logging.info(f"Balance remain: {balance}")
@@ -115,8 +87,7 @@ class BinanceClient():
         if self.target == "SPOT":
             margin = None
         elif self.target == "MARGIN":
-            info = self.exchange.fetch_balance()["info"]
-            margin = None if info["marginLevel"] is None else float(info["marginLevel"])
+            margin = float(self.exchange.fetch_balance()['info']['data'][0]['details'][0]['mgnRatio'])
         elif self.target == "FUTURE":
             info = self.exchange.fetch_positions()
             maintenance_margin = 0
@@ -128,35 +99,48 @@ class BinanceClient():
         logging.info(f"Margin level/ratio: {margin}")
         return margin
 
-    # trace back 12 hours
-    def get_ohlcv(self, symbol):
-        since = self.exchange.milliseconds() - 12 * 60 * 60 * 1000
-        return self.exchange.fetch_ohlcv(symbol, '1h', since)
-
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createMarketBuyOrder(symbol, amount)
+        if self.target == 'MARGIN':
+            params={ 
+                        'tdMode':'cross' ,
+                    'posSide':'long',
+                    "ordType":"market",
+                'lever': f'{self.leverage}',
+                "instType":'SWAP',
+                }
+        else:
+            params={ 
+                        'ccy' :"USDT",
+                        'px':f'{amount}'
+            }
+        print(amount)
+        order = self.exchange.createMarketBuyOrder(symbol, amount, params = params)
         logging.info(f"""
             Market Buy {symbol}
             Open price : {order['average']}
             Amount : {amount}
         """)
         return order
-
+    
     def create_limit_buy(self, symbol: str):
         price = self.get_price(symbol)
-        if self.fibonacci > 0 and self.fibonacci < 1:
-            fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlcv(symbol))
-            logging.info(info)
-
-            if fibo_price < price:
-                price = fibo_price
-            else:
-                logging.info(f"""Current price ${price} is lower than fibonacci price ${fibo_price}. Use limit price""")
-
         amount = self.quantity / price * self.leverage
-        order = self.exchange.createLimitBuyOrder(symbol, amount, price)
+        if self.target == 'MARGIN':
+            params={ 
+                        'tdMode':'cross' ,
+                    'posSide':'long',
+                    "ordType":"limit",
+                'lever': f'{self.leverage}',
+                "instType":'SWAP',
+                }
+        else:
+            params={ 
+                    'ccy' :"USDT",
+                    "ordType":"limit",
+                }
+        order = self.exchange.createLimitBuyOrder(symbol, amount, price,params = params)
         order["average"] = order.get("price", price)
         logging.info(f"""
             Market Buy {symbol}
@@ -164,10 +148,62 @@ class BinanceClient():
             Amount : {amount}
         """)
         return order
+#     def create_market_sell(self, symbol: str):
+#             price = self.get_price(symbol)
+#             amount = self.quantity / price * self.leverage
+#             if self.target == 'margin':
+#                 params={ 
+#                             'tdMode':'cross' ,
+#                         'posSide':'short',
+#                         "ordType":"limit",
+#                     'lever': f'{self.leverage}',
+#                     "instType":'SWAP',
+#                     }
+#             else:
+#                 params={ 
+#                             'tdMode':'cross' ,
+#                         'ccy' :"USDT",
+#                         "ordType":"limit",
+#                     }
+#             order = self.exchange.createMarketSellOrder(symbol, amount, params = params)
+#             logging.info(f"""
+#                 Market Buy {symbol}
+#                 Open price : {order['average']}
+#                 Amount : {amount}
+#             """)
+#             return order
+        
+     
+#     def create_limit_sell(self, symbol: str):
+#         price = self.get_price(symbol)
+#         amount = self.quantity / price * self.leverage
+#         if self.target == 'MARGIN':
+#             params={ 
+#                         'tdMode':'cross' ,
+#                     'posSide':'short',
+#                     "ordType":"limit",
+#                 'lever': f'{self.leverage}',
+#                 "instType":'SWAP',
+#                 }
+#         else:
+#             params={ 
+#                     'tdMode':'cross' ,
+#                     'ccy' :"USDT",
+#                     "ordType":"limit",
+#                 }
+#         order = self.exchange.create_limit_sell(symbol, amount, price,params = params)
+#         order["average"] = order.get("price", price)
+#         logging.info(f"""
+#             Market Buy {symbol}
+#             Open price : {order['average']}
+#             Amount : {amount}
+#         """)
+#         return order    
+
 
     def create_oco_order(self, symbol: str, open_order):
         amount = float(open_order["amount"])
-        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
+        price = float(open_order["average"])
         tp_price = price * (1 + self.tp)
         sl_price = price * (1 - self.sl)
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
@@ -179,10 +215,9 @@ class BinanceClient():
                     type="TAKE_PROFIT_MARKET",
                     side="SELL",
                     amount=amount,
-                    price=tp_price,
                     params={
                         "stopPrice": tp_price,
-                        "closePosition": not config["order_setting"]["tp_limit"],
+                        "closePosition": True,
                         "priceProtect": True
                     }
                 )
@@ -199,10 +234,9 @@ class BinanceClient():
                     type="STOP_MARKET",
                     side="SELL",
                     amount=amount,
-                    price=sl_price,
                     params={
                         "stopPrice": sl_price,
-                        "closePosition": not config["order_setting"]["sl_limit"],
+                        "closePosition": True,
                         "priceProtect": True
                     }
                 )
@@ -250,68 +284,6 @@ class BinanceClient():
                 if "-2021" in e.args[0]:
                     sell_order = self.exchange.createMarketSellOrder(symbol, amount)
                     logging.info("Sell immediately.")
-                    return None, None, sell_order
-
-        return tp_order, sl_order, None
-
-    def create_oco_short_order(self, symbol: str, open_order: dict, take_profit: float, stop_loss: float):
-        amount = float(open_order["amount"])
-        price = float(open_order["average"]) if open_order.get("average") else float(open_order["price"])
-
-        tp_price = price * (1 - self.tp)
-        sl_price = price * (1 + self.sl)
-
-        if config["other_setting"]["auto_sl_tp"] and take_profit is not None:
-            tp_price = take_profit
-        if config["other_setting"]["auto_sl_tp"] and stop_loss is not None:
-            sl_price = stop_loss
-
-        logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
-        tp_order = None
-        sl_order = None
-
-        if self.target == "FUTURE":
-            tp_order_type = "TAKE_PROFIT" if config["order_setting"]["tp_limit"] else "TAKE_PROFIT_MARKET"
-            sl_order_type = "STOP" if config["order_setting"]["sl_limit"] else "STOP_MARKET"
-
-            try:
-                tp_order = self.exchange.create_order(
-                    symbol,
-                    type=tp_order_type,
-                    side="BUY",
-                    price=tp_price,
-                    amount=amount,
-                    params={
-                        "stopPrice": tp_price,
-                        "closePosition": True,
-                        "priceProtect": True
-                    }
-                )
-            except Exception as e:
-                logging.info(str(e))
-                if "-2021" in e.args[0]:
-                    sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
-                    logging.info("Buy immediately.")
-                    return None, None, sell_order
-
-            try:
-                sl_order = self.exchange.create_order(
-                    symbol,
-                    type=sl_order_type,
-                    side="BUY",
-                    amount=amount,
-                    price=sl_price,
-                    params={
-                        "stopPrice": sl_price,
-                        "closePosition": True,
-                        "priceProtect": True
-                    }
-                )
-            except Exception as e:
-                logging.info(str(e))
-                if "-2021" in e.args[0]:
-                    sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
-                    logging.info("Buy immediately.")
                     return None, None, sell_order
 
         return tp_order, sl_order, None
@@ -382,68 +354,19 @@ class BinanceClient():
         logging.info("Margin check valid.")
         return True
 
-    def check_duplicate_and_giveup(self, symbol: str):
-        if self.no_duplicate:
-            if self.target == "SPOT" or self.target == "MARGIN":
-                logging.info("check spot duplicate")
-                token = symbol.split('/')[0]
-                asset = self.exchange.fetch_balance()["total"]
-                amount = float(asset.get(token, 0))
-                price = self.get_price(symbol)
-                notional = amount * price
-                return "buy" if notional > 10 else False
-            elif self.target == "FUTURE":
-                logging.info("check future duplicate")
-                positions = self.exchange.fetchPositions()
-                for position in positions:
-                    if position.get('symbol') == symbol:
-                        side = position.get('side')
-                        logging.info(f"{symbol} has {side} position.")
-                        if side == "long":
-                            return "buy"
-                        elif side == "short":
-                            return "sell"
-                        else:
-                            return side
-
-            logging.info(f"{symbol} no duplicate positions.")
-        return False
-
-    def giveup_order(self, symbol: str, action: str):
-        if self.target != "SPOT":
-            margin = self.get_margin(symbol)
-            if not self.risk_control(margin):
-                return True
-
-        if self.test_only:
-            logging.info("Test only. No order made.")
-            return True
-
-        if action == "sell" and self.target != "FUTURE":
-            logging.info("Sell order only for future")
-            return True
-
-        side = self.check_duplicate_and_giveup(symbol)
-        if side and side.lower() == action:
-            logging.info(f"{symbol} position already exists. No order made.")
-            return True
-
-        if config["order_setting"]["minimum_volume"]:
-            volume = self.get_volume(symbol)
-            if volume is not None:
-                if config["order_setting"]["minimum_volume"] > volume:
-                    return True
-
-        return False
-
-    def run(self, symbol_list: str, action: str, take_profit: float, stop_loss: float):
+    def run(self, symbol_list: str):
 
         logging.info("Start making order.")
         orders_list = []
         result_list = []
         margin = None
-
+       
+            
         for symbol in symbol_list:
+            if symbol[-4:] == 'SWAP':
+                self.target  = 'MARGIN'
+            else:
+                self.target  = 'SPOT'
 
             if self.target != "SPOT":
                 margin = self.get_margin(symbol)
@@ -461,31 +384,12 @@ class BinanceClient():
 
             tp_order = None
             sl_order = None
-
-            if action == "buy":
-                if self.order_type == "Limit":
-                    open_order = self.create_limit_buy(symbol)
-                elif self.order_type == "Market":
-                    open_order = self.create_market_buy(symbol)
-            elif action == "sell":
-                if self.order_type == "Limit":
-                    open_order = self.create_limit_sell(symbol)
-                elif self.order_type == "Market":
-                    open_order = self.create_market_sell(symbol)
-
-            if open_order:
-
-                if (self.sl != 0 and self.tp != 0) or (take_profit is not None and stop_loss is not None):
-
-                    if action == "buy":
-                        tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order, take_profit, stop_loss)
-                    elif action == "sell":
-                        tp_order, sl_order, sell_order = self.create_oco_short_order(symbol, open_order, take_profit, stop_loss)
-
-                    if sell_order is not None:
-                        result = self.clean_up(open_order, sell_order, msg="oco failed")
-                        open_order = None
-                        result_list.append(result)
+            if self.sl != 0 and self.tp != 0:
+                tp_order, sl_order, sell_order = self.create_oco_order(symbol, open_order)
+                if sell_order is not None:
+                    result = self.clean_up(open_order, sell_order, msg="oco failed")
+                    open_order = None
+                    result_list.append(result)
 
             orders_list.append((open_order, tp_order, sl_order))
 

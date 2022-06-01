@@ -1,0 +1,24 @@
+🟢 Swapped $649K in #ETH for #RPL on #UniswapV3 🦄
+ ($741) #0x6030f4
+Wallet - TXN
+Info - Market
+
+Prysm ✅  #prysm
+Winning Token Trades: 24
+Profitability: 72.730%
+Avg Returns: 76.210%
+
+Debank ✅  #debank
+position ratio: 99.87%
+wallet age: 1622 days
+
+RPL/BTC
+price_change_24h: 1.29%
+volume_change_24h: 36.02%
+usdt_increase_3d: 0/3 day
+
+Consensus
+Buy : 3d: 2   24hr: 2   8hr: 1   4hr: 1   1hr: 1   流通量比: 0.098
+Sell: 3d: 2   24hr: 2   8hr: 0   4hr: 0   1hr: 0   流通量比: 0.120
+
+Signal : 

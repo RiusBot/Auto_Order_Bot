@@ -27,16 +27,11 @@ def configure_logging():
 def save_config(config: dict):
     backup_config(config)
     try:
-        path = config["application_path"]
-        path = os.path.join(path, "config.yaml")
+        path = config["path"]
+        path = os.path.join(os.path.dirname(path), "config.yaml")
         config["path"] = path
         with open(path, "w", encoding='utf-8') as f:
-            tmp = config.copy()
-            if "whitelist" in tmp["listing_setting"]:
-                tmp["listing_setting"].pop("whitelist")
-            if "blacklist" in tmp["listing_setting"]:
-                tmp["listing_setting"].pop("blacklist")
-            yaml.dump(tmp, f, allow_unicode=True, default_flow_style=False)
+            yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
     except Exception as e:
         logging.exception("")
         restore_config(config)
@@ -44,14 +39,16 @@ def save_config(config: dict):
 
 
 def backup_config(config: dict):
-    source = config["config_path"]
-    destination = os.path.join(config["application_path"], "config_backup.yaml")
+    path = config["path"]
+    source = path
+    destination = os.path.join(os.path.dirname(path), "config_backup.yaml")
     shutil.copyfile(source, destination)
 
 
 def restore_config(config: dict):
-    destination = config["config_path"]
-    source = os.path.join(config["application_path"], "config_backup.yaml")
+    path = config["path"]
+    destination = path
+    source = os.path.join(os.path.dirname(path), "config_backup.yaml")
     shutil.copyfile(source, destination)
     os.remove(source)
 
@@ -68,7 +65,7 @@ def load_config() -> dict:
     if os.path.exists(os.path.join(application_path, "config.yaml")):
         path = os.path.join(application_path, "config.yaml")
     else:
-        path = os.path.join(application_path, "config_template.yaml")
+        path = os.path.join(application_path, "config_template_okex.yaml")
 
     with open(path, "r", encoding='utf-8') as f:
         config = yaml.safe_load(f)
@@ -102,47 +99,12 @@ def load_config() -> dict:
 
     config = type_casting(config)
     config["path"] = path
-    config["config_path"] = path
-    config["application_path"] = application_path
-    load_lists(config)
     return config
-
-
-def load_lists(config: dict):
-    path = config["application_path"]
-    try:
-        content = open(os.path.join(path, "whitelist.txt"), "r").read()
-        content = [i.strip() for i in content.split()]
-        content = [i for i in content if i]
-        config["listing_setting"]["whitelist"] = content
-    except Exception:
-        logging.error("Read whitelist failed.")
-        config["listing_setting"]["whitelist"] = []
-
-    try:
-        content = open(os.path.join(path, "blacklist.txt"), "r").read()
-        content = [i.strip() for i in content.split()]
-        content = [i for i in content if i]
-        config["listing_setting"]["blacklist"] = content
-    except Exception:
-        logging.error("Read blacklist failed.")
-        config["listing_setting"]["blacklist"] = []
-
-
-def save_lists(config: dict):
-    path = config["application_path"]
-    with open(os.path.join(path, "whitelist.txt"), "w") as f:
-        for i in config["listing_setting"]["whitelist"]:
-            print(i, file=f)
-    with open(os.path.join(path, "blacklist.txt"), "w") as f:
-        for i in config["listing_setting"]["blacklist"]:
-            print(i, file=f)
 
 
 def type_casting(config: dict):
     for key, value in config["order_setting"].items():
         if isinstance(value, str):
-            config["order_setting"][key] = value.strip()
             try:
                 value = float(value)
                 config["order_setting"][key] = value

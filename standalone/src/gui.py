@@ -1,15 +1,11 @@
 import ccxt
-import json
-import base64
 import traceback
 import logging
 import threading
 import PySimpleGUI as sg
 from telethon import TelegramClient
-from src.exchange import ExchangeClient
-from src.exchange.parse import parse_pro
-from src.config import config, save_config, type_casting, save_lists
-from src.telegram_bot import telegram_start
+from src.config import config, save_config, type_casting
+from src.telegram_bot import telegram_start, get_all_dialogs
 
 
 def telegram_setting_layout():
@@ -104,9 +100,8 @@ def order_setting_layout():
                         [sg.Checkbox('SL limit', default=True, key="sl_limit"),
                          sg.Checkbox('TP limit', default=True, key="tp_limit")]
                     ],
-                    element_justification="left"
+                    element_justification="right"
                 ),
-
             ],
         ],
         element_justification="center"
@@ -289,9 +284,6 @@ def listing_layout():
 
 def config_setup(window):
     try:
-        type_casting(config)
-        validate_config(config)
-
         # telegram setting
         for key, value in config["telegram_setting"].items():
             if key == "signal":
@@ -306,46 +298,15 @@ def config_setup(window):
                 elif value == "Daily":
                     window["D_signal"].update(value=True)
             else:
-                try:
-                    window[key].update(value=value)
-                except Exception:
-                    pass
+                window[key].update(value=value)
 
         # exchange setting
         for key, value in config["exchange_setting"].items():
-            try:
-                window[key].update(value=value)
-            except Exception:
-                pass
+            window[key].update(value=value)
 
         # Order setting
         for key, value in config["order_setting"].items():
-            try:
-                window[key].update(value=value)
-            except Exception:
-                pass
-
-        # keyword setting
-        for key, value in config["keywords"].items():
-            try:
-                window[key].update(value=value)
-            except Exception:
-                pass
-
-        # Other setting
-        for key, value in config["other_setting"].items():
-            try:
-                print(key, value)
-                window[key].update(value=value)
-            except Exception:
-                logging.exception("")
-
-        # listing setting
-        for key, value in config["listing_setting"].items():
-            try:
-                window[key].update(value=value)
-            except Exception:
-                pass
+            window[key].update(value=value)
 
     except Exception:
         logging.exception("")
@@ -353,7 +314,7 @@ def config_setup(window):
 
 
 def validate_config(config: dict):
-    if (config["order_setting"]["stop_loss"] != 0) ^ (config["order_setting"]["take_profit"] != 0):
+    if (config["order_setting"]["stop_loss"] == 0) ^ (config["order_setting"]["take_profit"] == 0):
         raise Exception("Stop loss and Take profit has to be both zero or both set.")
 
     if not (config["order_setting"]["stop_loss"] >= 0 and config["order_setting"]["stop_loss"] <= 1):
@@ -368,15 +329,14 @@ def validate_config(config: dict):
 
 def update_config(window):
     try:
-        type_casting(config)
         validate_config(config)
 
         # telegram setting
         for key in config["telegram_setting"]:
             if key == "signal":
-                if window["R_signal"].get() is True:
+                if window["R_signal"]:
                     config["telegram_setting"]["signal"] = "Rose"
-                elif window["P_signal"].get() is True:
+                elif window["P_signal"] is True:
                     config["telegram_setting"]["signal"] = "Perpetual"
                 elif window["S_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Sentiment"
@@ -385,56 +345,18 @@ def update_config(window):
                 elif window["D_signal"].get() is True:
                     config["telegram_setting"]["signal"] = "Daily"
             elif key == "signal_channel":
-                if window["R_signal"].get() is False:
-                    config["telegram_setting"][key] = window[key].get()
+                continue
             else:
-                try:
-                    config["telegram_setting"][key] = window[key].get()
-                except KeyError:
-                    pass
+                config["telegram_setting"][key] = window[key].get()
 
         # exchange setting
-        for key in config["exchange_setting"]:
-            try:
-                config["exchange_setting"][key] = window[key].get()
-            except KeyError:
-                pass
+        config["exchange_setting"]["exchange"] = window["exchange"].get()
+        config["exchange_setting"]["api_key"] = window["api_key"].get()
+        config["exchange_setting"]["api_secret"] = window["api_secret"].get()
 
         # order setting
         for key in config["order_setting"]:
-            try:
-                config["order_setting"][key] = window[key].get()
-            except KeyError:
-                pass
-
-        # keyword setting
-        for key, value in config["keywords"].items():
-            try:
-                try:
-                    keywords = list(eval(window[key].get()))
-                except Exception:
-                    keywords = [i for i in window[key].get().split(" ") if i]
-
-                config["keywords"][key] = keywords
-            except KeyError:
-                pass
-
-        # other setting
-        for key in config["other_setting"]:
-            try:
-                config["other_setting"][key] = window[key].get()
-            except KeyError:
-                logging.exception("")
-
-        # listing setting
-        for key in config["listing_setting"]:
-            try:
-                if isinstance(window[key], sg.Listbox):
-                    config["listing_setting"][key] = window[key].get_list_values()
-                else:
-                    config["listing_setting"][key] = window[key].get()
-            except KeyError:
-                pass
+            config["order_setting"][key] = window[key].get()
 
         type_casting(config)
         save_config(config)
@@ -446,14 +368,13 @@ def update_config(window):
 
 def telegram_login():
     telegram_client = TelegramClient(
-        config["telegram_setting"]["session"],
+        'anon',
         config["telegram_setting"]["telegram_api_id"],
         config["telegram_setting"]["telegram_api_hash"],
     )
     telegram_client.start(
         phone=lambda: sg.popup_get_text("Please enter your phone"),
         code_callback=lambda: sg.popup_get_text("Please enter the code you recieved"),
-        # password=lambda: sg.popup_get_text("Please enter your 2FA password")
     )
     telegram_client.disconnect()
 
@@ -489,7 +410,6 @@ def run_gui():
             )
         ],
     ]
-
     listing_tab = listing_layout()
     layout = [
         [sg.TabGroup(
@@ -501,46 +421,11 @@ def run_gui():
         )]
     ]
 
-    window = sg.Window("Auto Order Bot Pro", layout, finalize=True)
+    window = sg.Window("Auto Order Bot", layout, finalize=True)
     config_setup(window)
 
     while True:
         event, values = window.read()
-
-        if event == "search":
-            exchange = getattr(ccxt, config["exchange_setting"]["exchange"])()
-            exchange.loadMarkets()
-            markets = list(exchange.markets.keys())
-            token = window["search_target"].get().upper()
-            if token:
-                markets = [i for i in markets if token in i.split('/')[0]]
-            window["markets"].update(markets)
-
-        if event == "white_add":
-            market = window["markets"].get()[0]
-            whitelist = window["whitelist"].get_list_values()
-            if market not in whitelist:
-                whitelist.append(market)
-            window["whitelist"].update(whitelist)
-        if event == "black_add":
-            market = window["markets"].get()[0]
-            blacklist = window["blacklist"].get_list_values()
-            if market not in blacklist:
-                blacklist.append(market)
-            window["blacklist"].update(blacklist)
-        if event == "white_rm":
-            market = window["whitelist"].get()[0]
-            whitelist = window["whitelist"].get_list_values()
-            if market in whitelist:
-                whitelist.remove(market)
-            window["whitelist"].update(whitelist)
-        if event == "black_rm":
-            market = window["blacklist"].get()[0]
-            blacklist = window["blacklist"].get_list_values()
-            if market in blacklist:
-                blacklist.remove(market)
-            window["blacklist"].update(blacklist)
-
         if event in (sg.WIN_CLOSED, "Exit"):
             break
         if event == "login":
@@ -585,7 +470,7 @@ def run_gui():
                     telegram_thread.start()
             except Exception:
                 logging.exception("")
-                sg.Popup(f"Strat failed !!\n\n{traceback.format_exc()}")
+                sg.Popup(f"Update config failed !!\n\n{traceback.format_exc()}")
 
     window.close()
 
@@ -594,6 +479,5 @@ if __name__ == '__main__':
     try:
         run_gui()
     except Exception as e:
-        sg.popup(f"[CRITICAL ERROR] {str(e)}")
         logging.exception("")
         print(str(e))

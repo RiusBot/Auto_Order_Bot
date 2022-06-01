@@ -40,12 +40,15 @@ class FTXClient():
             }
 
         logging.info(f"headers: {headers}")
+
         self.exchange = getattr(ccxt, config["exchange_setting"]["exchange"])({
             "enableRateLimit": True,
             "apiKey": config["exchange_setting"]["api_key"],
             "secret": config["exchange_setting"]["api_secret"],
-            'options': options,
-            'headers': headers,
+            'options': {
+                "defaultType": self.target.lower(),
+                "verbose": True
+            }
         })
 
         try:
@@ -57,7 +60,7 @@ class FTXClient():
         self.markets = self.exchange.loadMarkets(True)
         logging.debug(self.markets)
 
-    def parse(self, message: str, img_path: str) -> Tuple[List[str], str]:
+    def parse(self, message: str) -> Tuple[List[str], str]:
         base = "-PERP" if self.target == "FUTURE" else "/USD"
         symbol_list, action, tp, sl = parse(message, base, img_path)
 
@@ -71,34 +74,21 @@ class FTXClient():
         logging.info(f"Action: {action}")
         return symbol_list, action, tp, sl
 
-    def get_volume(self, symbol: str) -> float:
-        try:
-            self.exchange.loadMarkets(True)
-            symbol = symbol.replace("USDT", "USD")
-            market = self.exchange.markets[symbol]
-            info = market["info"]
-            return float(info["volumeUsd24h"])
-        except Exception:
-            logging.excpetion("")
-            logging.error("get volume failed")
-
     def get_price(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
-        symbol = symbol.replace("USDT", "USD")
-        return float(self.exchange.fetchTicker(symbol)['bid'])
+        return self.exchange.fetchTicker(symbol)['bid']
 
     def get_balance(self):
         balance = 0
         info = self.exchange.fetch_balance()["info"]
         for coin in info["reuslt"]:
             if coin['coin'] == "USD":
-                balance = coin["availableWithoutBorrow"]
-        return float(balance)
+                balance = coin["avaiableWithoutBorrow"]
+        return balance
 
     def get_margin(self, symbol: str) -> float:
         self.exchange.loadMarkets(True)
-        margin = self.exchange.private_get_account()["result"]["marginFraction"]
-        return 999 if margin is None else float(margin)
+        return self.exchange.private_get_account()["result"]["marginFraction"]
 
     # trace back 12 hours
     def get_ohlcv(self, symbol):
@@ -108,9 +98,10 @@ class FTXClient():
     def create_market_buy(self, symbol: str):
         price = self.get_price(symbol)
         amount = self.quantity / price * self.leverage
+        order = self.exchange.createMarketBuyOrder(symbol, amount)
         logging.info(f"""
             Market Buy {symbol}
-            Open price : {price}
+            Open price : {order['average']}
             Amount : {amount}
         """)
         order = self.exchange.createMarketBuyOrder(symbol, amount)
@@ -119,7 +110,7 @@ class FTXClient():
         logging.info(f"Open average price : {order['average']}")
         return order
 
-    def create_limit_buy(self, symbol: str):
+    def create_limit_order(self, symbol: str):
         price = self.get_price(symbol)
         if self.fibonacci > 0 and self.fibonacci < 1:
             fibo_price, info = get_fibonacci(self.fibonacci, self.get_ohlcv(symbol))
@@ -131,34 +122,10 @@ class FTXClient():
                 logging.info(f"""Current price ${price} is lower than fibonacci price ${fibo_price}, use limit price""")
 
         amount = self.quantity / price * self.leverage
-        logging.info(f"""
-            Limit Buy {symbol}
-            Open price : {price}
-            Amount : {amount}
-        """)
         order = self.exchange.createLimitBuyOrder(symbol, amount, price)
         order["average"] = order.get("price", price)
-        return order
-
-    def create_market_sell(self, symbol: str):
-        price = self.get_price(symbol)
-        amount = self.quantity / price * self.leverage
         logging.info(f"""
-            Market Sell {symbol}
-            Open price : {price}
-            Amount : {amount}
-        """)
-        order = self.exchange.createMarketSellOrder(symbol, amount)
-        logging.info(f"Sell average price : {order['average']}")
-        return order
-
-    def create_limit_sell(self, symbol: str):
-        price = self.get_price(symbol)
-        amount = self.quantity / price * self.leverage
-        order = self.exchange.createLimitSellOrder(symbol, amount, price)
-        order["average"] = order.get("price", price)
-        logging.info(f"""
-            Limit Sell {symbol}
+            Market Buy {symbol}
             Open price : {order['average']}
             Amount : {amount}
         """)
@@ -248,44 +215,84 @@ class FTXClient():
             sl_price = stop_loss
 
         logging.info(f"Stop loss: {sl_price} , Take profit : {tp_price}")
-        tp_order = None
-        sl_order = None
 
-        try:
-            tp_order = self.exchange.private_post_conditional_orders(
-                params={
-                    "market": symbol,
-                    "side": "buy",
-                    "triggerPrice": tp_price,
-                    "size": amount,
-                    "type": "takeProfit",
-                    "reduceOnly": True
-                }
-            )
-        except Exception as e:
-            logging.info(str(e))
-            if "-2021" in e.args[0]:
-                sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
-                logging.info("Buy immediately.")
-                return None, None, sell_order
+        if self.target == "FUTURE":
+            try:
+                tp_order = self.exchange.create_order(
+                    symbol,
+                    type="TAKE_PROFIT_MARKET",
+                    side="SELL",
+                    amount=amount,
+                    params={
+                        "stopPrice": tp_price,
+                        "closePosition": True,
+                        "priceProtect": True
+                    }
+                )
+            except Exception as e:
+                logging.info(str(e))
+                if "-2021" in e.args[0]:
+                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                    logging.info("Sell immediately.")
+                    return None, None, sell_order
 
-        try:
-            sl_order = self.exchange.private_post_conditional_orders(
-                params={
-                    "market": symbol,
-                    "side": "buy",
-                    "triggerPrice": sl_price,
-                    "size": amount,
-                    "type": "stop",
-                    "reduceOnly": True
-                }
-            )
-        except Exception as e:
-            logging.info(str(e))
-            if "-2021" in e.args[0]:
-                sell_order = self.exchange.createMarketBuyOrder(symbol, amount)
-                logging.info("Buy immediately.")
-                return None, None, sell_order
+            try:
+                sl_order = self.exchange.create_order(
+                    symbol,
+                    type="STOP_MARKET",
+                    side="SELL",
+                    amount=amount,
+                    params={
+                        "stopPrice": sl_price,
+                        "closePosition": True,
+                        "priceProtect": True
+                    }
+                )
+            except Exception as e:
+                logging.info(str(e))
+                if "-2021" in e.args[0]:
+                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                    logging.info("Sell immediately.")
+                    return None, None, sell_order
+
+        elif self.target == "SPOT":
+            try:
+                oco_order = self.exchange.private_post_order_oco({
+                    "symbol": symbol.replace("/", ""),
+                    "side": "SELL",
+                    "quantity": amount,
+                    "price": tp_price,
+                    "stopPrice": sl_price,
+                    "StopLimitPrice": sl_price,
+                    "stopLimitTimeInForce": "GTC"
+                })
+                tp_order, sl_order = self.process_oco_order(oco_order)
+
+            except Exception as e:
+                logging.info(str(e))
+                if "-2021" in e.args[0]:
+                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                    logging.info("Sell immediately.")
+                    return None, None, sell_order
+        elif self.target == "MARGIN":
+            try:
+                oco_order = self.exchange.sapi_post_margin_order_oco({
+                    "symbol": symbol,
+                    "side": "SELL",
+                    "quantity": amount,
+                    "price": tp_price,
+                    "stopPrice": sl_price,
+                    "StopLimitPrice": sl_price,
+                    "stopLimitTimeInForce": "GTC"
+                })
+                tp_order, sl_order = self.process_oco_order(oco_order)
+
+            except Exception as e:
+                logging.info(str(e))
+                if "-2021" in e.args[0]:
+                    sell_order = self.exchange.createMarketSellOrder(symbol, amount)
+                    logging.info("Sell immediately.")
+                    return None, None, sell_order
 
         return tp_order, sl_order, None
 
@@ -340,72 +347,22 @@ class FTXClient():
 
     def validate_symbol(self, symbol: str):
         self.markets = self.exchange.loadMarkets(True)
-        valid = symbol in self.markets
-        logging.info(f"{symbol} valid: {valid}")
-        return valid
+        return symbol in self.markets
 
     def risk_control(self, margin: float):
         logging.info(f"Current margin: {margin}, minimum margin: {self.margin}.")
-        if margin < self.margin:
-            logging.info("violtate margin risk !! Give up.")
-            return False
+        if self.target == "FUTURE":
+            if margin > self.margin:
+                logging.info("violtate margin risk !! Give up.")
+                return False
+        elif self.target == "MARGIN":
+            if margin < self.margin:
+                logging.info("violtate margin risk !! Give up.")
+                return False
         logging.info("Margin check valid.")
         return True
 
-    def check_duplicate_and_giveup(self, symbol: str):
-        if self.no_duplicate:
-            if self.target == "SPOT" or self.target == "MARGIN":
-                logging.info("check spot duplicate")
-                token = symbol.split('/')[0]
-                asset = self.exchange.fetch_balance()["total"]
-                amount = float(asset.get(token, 0))
-                price = self.get_price(symbol)
-                notional = amount * price
-                return True if notional > 1 else False
-            elif self.target == "FUTURE":
-                logging.info("check future duplicate")
-                positions = self.exchange.fetchPositions()
-                for position in positions:
-                    if "symbol" in position:
-                        position = position.get("info", {})
-
-                    if position.get('future') == symbol and position.get('entryPrice') and position.get('side'):
-                        side = position['side']
-                        logging.info(f"{symbol} has {side} position.")
-                        return side
-
-            logging.info(f"{symbol} No duplicate positions")
-        return False
-
-    def giveup_order(self, symbol: str, action: str):
-
-        side = self.check_duplicate_and_giveup(symbol)
-        if side and side == action:
-            logging.info(f"{symbol} position already exists. No order made.")
-            return True
-
-        if self.target != "SPOT":
-            margin = self.get_margin(symbol)
-            if not self.risk_control(margin):
-                return True
-
-        if self.test_only:
-            logging.info("Test only. No order made.")
-            return True
-
-        if action == "sell" and self.target != "FUTURE":
-            logging.info("Sell order only for future")
-            return True
-
-        if config["order_setting"]["minimum_volume"]:
-            volume = self.get_volume(symbol)
-            if volume is not None:
-                if config["order_setting"]["minimum_volume"] > volume:
-                    return True
-
-        return False
-
-    def run(self, symbol_list: str, action: str, take_profit: float, stop_loss: float):
+    def run(self, symbol_list: str):
 
         logging.info("Start making order.")
         orders_list = []
@@ -414,11 +371,20 @@ class FTXClient():
 
         for symbol in symbol_list:
 
-            if self.giveup_order(symbol, action):
-                logging.info("give up order.")
+            if self.target != "SPOT":
+                margin = self.get_margin(symbol)
+                if not self.risk_control(margin):
+                    continue
+
+            if self.test_only:
+                logging.info("Test only. No order made.")
                 continue
 
-            open_order = None
+            if self.order_type == "Limit":
+                open_order = self.create_limit_order(symbol)
+            elif self.order_type == "Market":
+                open_order = self.create_market_order(symbol)
+
             tp_order = None
             sl_order = None
 
@@ -447,11 +413,6 @@ class FTXClient():
                         open_order = None
                         result_list.append(result)
 
-            if open_order:
-                orders_list.append("buy order placed.")
-            if tp_order:
-                orders_list.append("take profit order placed.")
-            if sl_order:
-                orders_list.append("stop loss order placed.")
+            orders_list.append((open_order, tp_order, sl_order))
 
         return orders_list, result_list, margin
