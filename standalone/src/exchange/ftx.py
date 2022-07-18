@@ -367,7 +367,7 @@ class FTXClient():
         logging.info("Start making order.")
         orders_list = []
         result_list = []
-        margin = None
+        margin = 0
 
         for symbol in symbol_list:
 
